@@ -80,7 +80,7 @@ async function generateArticle(title, sourceContent, sourceUrl) {
     throw new Error("OPENROUTER_API_KEY not set")
   }
 
-  const prompt = `Buatkan artikel berita dalam bahasa Indonesia yang menarik dan informatif berdasarkan kontribusi di bawah. 
+  const prompt = `Buatkan artikel berita dalam bahasa Indonesia atau bahasa Inggris yang menarik dan informatif dan seo yang bagus berdasarkan kontribusi di bawah. 
 Jangan mention sumber asli. Artikel harus original, dengan paragraf yang rapi.
 Judul: ${title}
 Konten sumber: ${sourceContent.slice(0, 2000)}
@@ -101,7 +101,7 @@ Jangan sertakan placeholder gambar.`
       {
         model: OPENROUTER_MODEL,
         messages: [
-          { role: "system", content: "Kamu adalah jurnalis profesional bahasa Indonesia." },
+          { role: "system", content: "Kamu adalah jurnalis profesional bahasa Indonesia dan Inggris." },
           { role: "user", content: prompt },
         ],
         temperature: 0.7,

@@ -1,6 +1,6 @@
 import { Pool } from "pg"
 
-const pool = new Pool({
+export const pool = new Pool({
   host: process.env.PGHOST || "localhost",
   port: parseInt(process.env.PGPORT || "5432"),
   database: process.env.PGDATABASE || "ai_news_db",
@@ -27,6 +27,7 @@ export type Article = {
   excerpt?: string | null
   author?: string | null
   views?: number
+  categories?: string
 }
 
 export type Category = {
@@ -62,6 +63,36 @@ export async function getArticleById(id: number) {
     [id]
   )
   return result.rows[0]
+}
+
+export async function getArticleBySlug(slug: string) {
+  const normalizedSlug = slug
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+
+  const result = await pool.query<Article>(
+    `SELECT * FROM articles WHERE is_published = true AND lower(regexp_replace(trim(title), '[^a-z0-9]+', '-', 'g')) = $1 LIMIT 1`,
+    [normalizedSlug]
+  )
+
+  if (result.rows.length > 0) {
+    return result.rows[0]
+  }
+
+  // fallback: match by normalized title in JS to cover edge cases
+  const fallback = await pool.query<Article>(
+    `SELECT * FROM articles WHERE is_published = true`
+  )
+  return fallback.rows.find((article) => {
+    const articleSlug = (article.title || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+    return articleSlug === normalizedSlug
+  })
 }
 
 export async function getAllCategories() {

@@ -1,3 +1,5 @@
+import "./globals.css"
+
 export const metadata = {
   title: "AI News - Berita Dikelola oleh Kecerdasan Buatan",
   description: "AI News menyajikan berita terkini yang digenerate dan dikelola oleh artificial intelligence. Kategori: Teknologi, Bisnis, Olahraga, Kesehatan, dan lainnya.",

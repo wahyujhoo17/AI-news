@@ -244,7 +244,11 @@ function HomeContent() {
 
                 <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700">
                   <a
-                    href={`/api/articles/[id]?id=${article.id}`}
+                    href={`/articles/${article.title
+                      .toLowerCase()
+                      .trim()
+                      .replace(/[^a-z0-9]+/g, "-")
+                      .replace(/(^-|-$)/g, "")}`}
                     className="block w-full text-center bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-colors"
                   >
                     Baca Selengkapnya

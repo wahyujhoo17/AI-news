@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import pool from "@/lib/db"
+import { pool } from "@/lib/db"
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "secret123"
 
