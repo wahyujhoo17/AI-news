@@ -22,6 +22,22 @@ const BUILTIN_FEEDS = [
   { name: 'The Guardian', type: 'rss', url: 'https://www.theguardian.com/world/rss' }
 ]
 
+// Tech-specific feeds — selalu menghasilkan 30% dari total artikel per siklus
+const TECH_FEEDS = [
+  { id: 901, name: 'TechCrunch', type: 'rss', url: 'https://techcrunch.com/feed/', isTech: true },
+  { id: 902, name: 'The Verge', type: 'rss', url: 'https://www.theverge.com/rss/index.xml', isTech: true },
+  { id: 903, name: 'Ars Technica', type: 'rss', url: 'https://feeds.arstechnica.com/arstechnica/index', isTech: true },
+  { id: 904, name: 'Wired', type: 'rss', url: 'https://www.wired.com/feed/rss', isTech: true },
+  { id: 905, name: 'MIT Tech Review', type: 'rss', url: 'https://www.technologyreview.com/feed/', isTech: true },
+]
+
+// Konfigurasi rasio artikel per siklus crawl
+const CRAWL_CONFIG = {
+  TOTAL_BUDGET: 10,      // total artikel target per siklus
+  TECH_RATIO: 0.30,      // 30% tech
+  MAX_PER_SOURCE: 3,     // maks artikel diambil per sumber
+}
+
 async function fetchImageFromUnsplash(keywords) {
   try {
     const unsplashKey = process.env.UNSPLASH_API_KEY
@@ -463,8 +479,12 @@ async function logCrawl(sourceId, status, error = null, count = 0) {
   }
 }
 
-async function processSource(source) {
-  console.log("Processing source:", source.name)
+// options: { maxArticles, forcedCategories }
+async function processSource(source, options = {}) {
+  const maxArticles = options.maxArticles || CRAWL_CONFIG.MAX_PER_SOURCE
+  const forcedCategories = options.forcedCategories || []
+
+  console.log(`Processing source: ${source.name} (max: ${maxArticles} articles${source.isTech ? ' 🔧 tech' : ''})`)
   let articles = []
   if (source.type === "rss") {
     articles = await fetchRSS(source.url)
@@ -474,15 +494,15 @@ async function processSource(source) {
 
   if (articles.length === 0) {
     console.log("No articles found for", source.name)
-    await logCrawl(source.id, "completed", undefined, 0)
-    return
+    if (source.id < 900) await logCrawl(source.id, "completed", undefined, 0)
+    return 0
   }
 
   const now = new Date().toISOString()
-  await logCrawl(source.id, "started")
+  if (source.id < 900) await logCrawl(source.id, "started")
 
   let generatedCount = 0
-  for (const article of articles.slice(0, 3)) {
+  for (const article of articles.slice(0, maxArticles)) {
     try {
       // Verifikasi 1: Cek judul source sudah pernah di-process
       const existingSource = await pool.query(
@@ -552,8 +572,8 @@ async function processSource(source) {
       console.log("[AI Classification] Analyzing article for additional categories...")
       const aiCategories = await classifyArticleWithAI(generated.title, generated.excerpt)
 
-      // Merge keyword categories with AI suggestions (remove duplicates)
-      const allCategories = [...new Set([...categories, ...aiCategories])]
+      // Merge keyword categories + AI suggestions + forced categories (e.g. 'technology' for tech sources)
+      const allCategories = [...new Set([...categories, ...aiCategories, ...forcedCategories])]
       console.log(`[Categorization] Final categories: ${allCategories.join(', ')}`)
 
       for (const catName of allCategories) {
@@ -583,7 +603,8 @@ async function processSource(source) {
   }
 
   console.log(`Source ${source.name} done. Generated: ${generatedCount}`)
-  await logCrawl(source.id, "completed", undefined, generatedCount)
+  if (source.id < 900) await logCrawl(source.id, "completed", undefined, generatedCount)
+  return generatedCount
 }
 
 async function getSources() {
@@ -600,11 +621,45 @@ async function runCrawl() {
   console.log("Running scheduled crawl...")
   console.log("Starting crawl job...")
 
+  const techBudget = Math.round(CRAWL_CONFIG.TOTAL_BUDGET * CRAWL_CONFIG.TECH_RATIO)  // 3
+  const generalBudget = CRAWL_CONFIG.TOTAL_BUDGET - techBudget                            // 7
+
+  console.log(`[BUDGET] Cycle target: ${CRAWL_CONFIG.TOTAL_BUDGET} artikel | Tech: ${techBudget} (${CRAWL_CONFIG.TECH_RATIO * 100}%) | General: ${generalBudget} (${(1 - CRAWL_CONFIG.TECH_RATIO) * 100}%)`)
+
   try {
-    const sources = await getSources()
-    for (const source of sources) {
-      await processSource(source)
+    // ── 30% TECH SOURCES ──────────────────────────────────────────
+    let techGenerated = 0
+    // Acak urutan tech sources agar tidak selalu sumber yang sama yang dapat jatah
+    const shuffledTech = [...TECH_FEEDS].sort(() => Math.random() - 0.5)
+
+    for (const source of shuffledTech) {
+      if (techGenerated >= techBudget) break
+      const remaining = techBudget - techGenerated
+      const count = await processSource(source, {
+        maxArticles: Math.min(remaining, CRAWL_CONFIG.MAX_PER_SOURCE),
+        forcedCategories: ['technology']
+      })
+      techGenerated += count
     }
+    console.log(`[BUDGET] Tech selesai: ${techGenerated}/${techBudget} artikel`)
+
+    // ── 70% GENERAL SOURCES ───────────────────────────────────────
+    let generalGenerated = 0
+    const generalSources = await getSources()
+    // Acak urutan general sources juga
+    const shuffledGeneral = [...generalSources].sort(() => Math.random() - 0.5)
+
+    for (const source of shuffledGeneral) {
+      if (generalGenerated >= generalBudget) break
+      const remaining = generalBudget - generalGenerated
+      const count = await processSource(source, {
+        maxArticles: Math.min(remaining, CRAWL_CONFIG.MAX_PER_SOURCE)
+      })
+      generalGenerated += count
+    }
+    console.log(`[BUDGET] General selesai: ${generalGenerated}/${generalBudget} artikel`)
+
+    console.log(`[BUDGET] Total siklus ini: ${techGenerated + generalGenerated} artikel (tech: ${techGenerated}, general: ${generalGenerated})`)
     console.log("Crawl job completed.")
   } catch (err) {
     console.error("Crawl error:", err.message)
