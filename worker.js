@@ -1096,13 +1096,12 @@ async function processSource(source, options = {}) {
 }
 
 async function getSources() {
-  try {
-    const result = await pool.query("SELECT id, name, type, url FROM sources ORDER BY id")
-    return result.rows
-  } catch (err) {
-    console.log("DB sources unavailable, using builtin feeds:", err.message)
-    return BUILTIN_FEEDS.map((f, i) => ({ id: i + 1, name: f.name, type: f.type, url: f.url }))
-  }
+  return BUILTIN_FEEDS.map((f, i) => ({
+    id: f.id || 1000 + i + 1,
+    name: f.name,
+    type: f.type,
+    url: f.url,
+  }))
 }
 
 async function runCrawl() {
