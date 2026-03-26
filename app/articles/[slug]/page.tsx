@@ -122,6 +122,20 @@ function generateSlug(title: string): string {
     .replace(/(^-|-$)/g, "")
 }
 
+function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page"): string {
+  const titleLength = title.trim().length
+
+  if (variant === "page") {
+    if (titleLength > 140) return "text-2xl md:text-3xl"
+    if (titleLength > 90) return "text-3xl md:text-4xl"
+    return "text-4xl md:text-5xl"
+  }
+
+  if (titleLength > 140) return "text-xs"
+  if (titleLength > 100) return "text-sm"
+  return "text-base"
+}
+
 function renderMarkdownContent(content: string) {
   if (!content) return null
 
@@ -435,7 +449,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           {/* Header Info */}
           <div className="mb-8">
             {/* Title */}
-            <h1 className="text-4xl md:text-5xl font-black text-white mb-4 leading-tight">
+            <h1 className={`${getAdaptiveTitleClass(article.title)} font-black text-white mb-4 leading-tight break-words`}>
               {article.title}
             </h1>
 
@@ -462,37 +476,38 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             {renderMarkdownContent(article.content)}
           </div>
 
-          {/* Read Also Section - Inline with Content */}
-          {recommendedArticles.length > 0 && (
-            <div className="mb-8 p-4 border-l-4 border-cyan-500/60 bg-cyan-500/5 rounded-r">
-              <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">Read also:</h3>
-              <div className="space-y-2">
-                {recommendedArticles.slice(0, 2).map((relatedArticle) => (
-                  <Link
-                    key={relatedArticle.id}
-                    href={`/articles/${generateSlug(relatedArticle.title)}`}
-                    className="block text-sm text-cyan-400 hover:text-cyan-300 transition-colors hover:underline"
-                  >
-                    {relatedArticle.title}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Read Also + Categories Section */}
+          {(recommendedArticles.length > 0 || article.categories) && (
+            <div className="mb-8 p-4 border-l-4 border-cyan-500/60 bg-cyan-500/5 rounded-r space-y-4">
+              {recommendedArticles.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">Read also:</h3>
+                  <div className="space-y-2">
+                    {recommendedArticles.slice(0, 2).map((relatedArticle) => (
+                      <Link
+                        key={relatedArticle.id}
+                        href={`/articles/${generateSlug(relatedArticle.title)}`}
+                        className="block text-sm text-cyan-400 hover:text-cyan-300 transition-colors hover:underline break-words"
+                      >
+                        {relatedArticle.title}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Categories - Below Content */}
-          {article.categories && (
-            <div className="my-8 pt-8 border-t border-cyan-500/20">
-              <div className="flex flex-wrap gap-2">
-                {article.categories.split(", ").map((cat, i) => (
-                  <span
-                    key={i}
-                    className="px-3 py-1 bg-cyan-500/20 text-cyan-300 text-xs font-semibold rounded-full border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
-                  >
-                    {cat}
-                  </span>
-                ))}
-              </div>
+              {article.categories && (
+                <div className="flex flex-wrap gap-2">
+                  {article.categories.split(", ").map((cat, i) => (
+                    <span
+                      key={i}
+                      className="px-3 py-1 bg-cyan-500/20 text-cyan-300 text-xs font-semibold rounded-full border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+                    >
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -500,7 +515,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
         {/* Recommended Reading Section - Grid Below */}
         {recommendedArticles.length > 0 && (
-          <div className="mt-20 pt-12 border-t border-cyan-500/20">
+          <div className="mt-10 pt-12 border-t border-cyan-500/20">
             <div>
               <h2 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
                 <svg className="w-8 h-8 text-cyan-400" fill="currentColor" viewBox="0 0 24 24">
@@ -546,7 +561,9 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                       </span>
                     </div>
 
-                    <h3 className="text-sm font-bold text-white mb-2 line-clamp-2 leading-tight group-hover:text-cyan-300 transition-colors flex-grow">
+                    <h3
+                      className={`${getAdaptiveTitleClass(recArticle.title, "card")} font-bold text-white mb-2 leading-snug group-hover:text-cyan-300 transition-colors flex-grow break-words`}
+                    >
                       {recArticle.title}
                     </h3>
 
