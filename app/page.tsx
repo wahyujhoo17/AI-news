@@ -107,6 +107,9 @@ function HomeContent() {
 
         // Set pagination data
         if (data.pagination) {
+          if (data.pagination.page !== currentPage) {
+            setCurrentPage(data.pagination.page)
+          }
           setTotalPages(data.pagination.totalPages)
           setTotal(data.pagination.total)
         }

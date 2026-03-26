@@ -1,4 +1,4 @@
-const { pool } = require("./lib/db")
+const { pool } = require("./lib/db-worker")
 
 const categories = [
   { name: "Teknologi", slug: "teknologi", description: "Berita teknologi dan digital", color: "#3B82F6" },

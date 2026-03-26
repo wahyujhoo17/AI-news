@@ -30,6 +30,20 @@ export type Article = {
   categories?: string
 }
 
+export type ArticleListItem = {
+  id: number
+  title: string
+  excerpt?: string | null
+  content?: string
+  source_name: string
+  source_url: string | null
+  published_at: string | null
+  created_at: string
+  featured_image?: string | null
+  views?: number
+  categories?: string
+}
+
 export type Category = {
   id: number
   name: string
@@ -55,6 +69,83 @@ export async function getRecentArticles(limit = 20, categorySlug?: string) {
   query += ` GROUP BY a.id ORDER BY a.published_at DESC, a.created_at DESC LIMIT $1`
   const result = await pool.query<Article & { categories?: string }>(query, params)
   return result.rows
+}
+
+export async function getRecentArticlesPaginated(options?: {
+  page?: number
+  limit?: number
+  categorySlug?: string
+  search?: string
+}) {
+  const requestedPage = Math.max(1, options?.page || 1)
+  const limit = Math.min(100, Math.max(1, options?.limit || 12))
+  const categorySlug = options?.categorySlug
+  const search = (options?.search || "").trim().toLowerCase()
+
+  const where: string[] = ["a.is_published = true"]
+  const params: any[] = []
+
+  if (categorySlug) {
+    params.push(categorySlug)
+    where.push(`c.slug = $${params.length}`)
+  }
+
+  if (search) {
+    params.push(`%${search}%`)
+    where.push(`(LOWER(a.title) LIKE $${params.length} OR LOWER(COALESCE(a.excerpt, '')) LIKE $${params.length})`)
+  }
+
+  const whereClause = `WHERE ${where.join(" AND ")}`
+
+  const countResult = await pool.query<{ total: string }>(
+    `SELECT COUNT(DISTINCT a.id) AS total
+     FROM articles a
+     LEFT JOIN article_categories ac ON a.id = ac.article_id
+     LEFT JOIN categories c ON ac.category_id = c.id
+     ${whereClause}`,
+    params
+  )
+
+  const total = parseInt(countResult.rows[0]?.total || "0", 10)
+  const totalPages = Math.max(1, Math.ceil(total / limit))
+  const page = Math.min(requestedPage, totalPages)
+  const offset = (page - 1) * limit
+
+  const listParams = [...params, limit, offset]
+  const listResult = await pool.query<ArticleListItem>(
+    `SELECT
+       a.id,
+       a.title,
+       a.excerpt,
+       LEFT(COALESCE(a.content, ''), 220) AS content,
+       a.source_name,
+       a.source_url,
+       a.published_at,
+       a.created_at,
+       a.featured_image,
+       a.views,
+       string_agg(DISTINCT c.name, ', ') AS categories
+     FROM articles a
+     LEFT JOIN article_categories ac ON a.id = ac.article_id
+     LEFT JOIN categories c ON ac.category_id = c.id
+     ${whereClause}
+     GROUP BY a.id
+     ORDER BY a.published_at DESC, a.created_at DESC
+     LIMIT $${listParams.length - 1}
+     OFFSET $${listParams.length}`,
+    listParams
+  )
+
+  return {
+    articles: listResult.rows,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasMore: page < totalPages,
+    },
+  }
 }
 
 export async function getArticleById(id: number) {

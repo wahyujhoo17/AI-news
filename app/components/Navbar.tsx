@@ -42,19 +42,10 @@ export default function Navbar() {
     setIsSearching(true)
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/articles?limit=100`)
+        const response = await fetch(`/api/articles?search=${encodeURIComponent(searchQuery.trim())}&limit=8&page=1`)
         const data = await response.json()
-        const articles = data.articles || []
 
-        const query = searchQuery.toLowerCase()
-        const filtered = articles
-          .filter((a: SearchResult) =>
-            a.title.toLowerCase().includes(query) ||
-            a.excerpt?.toLowerCase().includes(query)
-          )
-          .slice(0, 8)
-
-        setSearchResults(filtered)
+        setSearchResults(Array.isArray(data.articles) ? data.articles : [])
         setShowDropdown(true)
       } catch (error) {
         console.error("Search error:", error)
@@ -130,12 +121,11 @@ export default function Navbar() {
                       className="w-full px-3 py-2 hover:bg-cyan-500/20 transition-all flex gap-2 items-start border-b border-cyan-500/10 last:border-b-0 text-left"
                     >
                       {result.featured_image && (
-                        <Image
+                        <img
                           src={result.featured_image}
                           alt={result.title}
-                          width={40}
-                          height={40}
                           className="w-10 h-10 object-cover rounded flex-shrink-0"
+                          loading="lazy"
                         />
                       )}
                       <div className="flex-1 min-w-0">

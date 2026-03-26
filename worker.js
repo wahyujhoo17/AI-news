@@ -5,7 +5,7 @@ const Parser = require('rss-parser')
 const cheerio = require('cheerio')
 const fs = require('fs')
 const path = require('path')
-const { pool } = require('./lib/db')
+const { pool } = require('./lib/db-worker')
 
 console.log("[STARTUP] Environment variables loaded:")
 console.log("[STARTUP] UNSPLASH_API_KEY:", process.env.UNSPLASH_API_KEY ? "✓" : "✗")
@@ -18,34 +18,34 @@ class GroqKeyManager {
   constructor() {
     const keysEnv = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY
     if (!keysEnv) throw new Error('GROQ_API_KEYS or GROQ_API_KEY not configured')
-    
+
     this.keys = keysEnv.split(',').map(k => k.trim()).filter(k => k.length > 0)
     this.currentIndex = 0
     this.keyStats = {}
-    
+
     this.keys.forEach(key => {
       this.keyStats[key] = { attempts: 0, failures: 0, success: 0 }
     })
-    
+
     console.log(`[GROQ] Initialized with ${this.keys.length} API key(s)`)
     this.keys.forEach((key, idx) => {
       console.log(`  [${idx + 1}] ${key.slice(0, 10)}...${key.slice(-10)}`)
     })
   }
-  
+
   getNextKey() {
     this.currentIndex = (this.currentIndex + 1) % this.keys.length
     const key = this.keys[this.currentIndex]
     this.keyStats[key].attempts++
     return key
   }
-  
+
   recordSuccess(key) {
     if (this.keyStats[key]) {
       this.keyStats[key].success++
     }
   }
-  
+
   recordFailure(key) {
     if (this.keyStats[key]) {
       this.keyStats[key].failures++
@@ -95,7 +95,359 @@ const CRAWL_CONFIG = {
   MAX_PER_SOURCE: 3,       // maks artikel diambil per sumber
 }
 
-async function fetchImageFromUnsplash(keywords) {
+const IMAGE_STOP_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'by', 'for', 'from', 'is', 'are', 'was', 'were',
+  'be', 'been', 'being', 'with', 'that', 'this', 'these', 'those', 'into', 'onto', 'about', 'after', 'before',
+  'during', 'over', 'under', 'between', 'within', 'without', 'their', 'there', 'have', 'has', 'had', 'its',
+  'will', 'would', 'could', 'should', 'said', 'says', 'say', 'new', 'latest', 'report', 'reports', 'amid',
+  'issue', 'issues', 'release', 'releases', 'released', 'update', 'updates'
+])
+
+const CATEGORY_HINT_CACHE_TTL_MS = 10 * 60 * 1000
+let categoryHintCache = {
+  bySlug: new Map(),
+  loadedAt: 0,
+}
+
+function extractMeaningfulTerms(text, limit = 8) {
+  if (!text) return []
+
+  const uniqueTerms = []
+  const seen = new Set()
+  const terms = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .map(term => term.trim())
+    .filter(term => term.length > 2 && !IMAGE_STOP_WORDS.has(term) && !/^\d+$/.test(term))
+
+  for (const term of terms) {
+    if (seen.has(term)) continue
+    seen.add(term)
+    uniqueTerms.push(term)
+    if (uniqueTerms.length >= limit) break
+  }
+
+  return uniqueTerms
+}
+
+function sanitizeImageHint(text) {
+  if (!text || typeof text !== 'string') return ''
+
+  return text
+    .replace(/^image\s*hint\s*[:\-]\s*/i, '')
+    .replace(/[`*_#>\[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+}
+
+function buildFallbackImageHint(title = '', content = '') {
+  const titleTerms = extractMeaningfulTerms(title, 5)
+  const contentTerms = extractMeaningfulTerms(content, 7).filter(term => !titleTerms.includes(term))
+  const terms = [...titleTerms, ...contentTerms.slice(0, 3)]
+
+  return terms.slice(0, 6).join(' ').trim()
+}
+
+const CONTEXTUAL_IMAGE_TERMS = new Set([
+  'meeting', 'conference', 'summit', 'diplomacy', 'government', 'politics', 'policy', 'parliament',
+  'technology', 'digital', 'innovation', 'software', 'business', 'finance', 'market', 'economy',
+  'health', 'medical', 'hospital', 'sports', 'football', 'stadium', 'education', 'school', 'university',
+  'research', 'science', 'laboratory', 'climate', 'environment', 'nature', 'energy', 'industry',
+  'security', 'military', 'conflict', 'international', 'global', 'city', 'office', 'team', 'discussion'
+])
+
+function buildContextualImageHint(aiImageHint = '', title = '', excerpt = '') {
+  const rawHintTerms = extractMeaningfulTerms(aiImageHint, 8)
+  const contextText = `${title} ${excerpt}`.toLowerCase()
+
+  const contextualTerms = rawHintTerms.filter(term => CONTEXTUAL_IMAGE_TERMS.has(term))
+
+  if (contextualTerms.length >= 3) {
+    return contextualTerms.slice(0, 6).join(' ').trim()
+  }
+
+  const inferredTerms = []
+  if (/(meeting|summit|visit|minister|president|secretary|government|parliament|diplom)/i.test(contextText)) {
+    inferredTerms.push('government', 'diplomacy', 'meeting')
+  }
+  if (/(technology|tech|software|chip|robot|cyber|digital|ai)/i.test(contextText)) {
+    inferredTerms.push('technology', 'innovation', 'digital')
+  }
+  if (/(market|trade|finance|startup|company|investor|stock|econom)/i.test(contextText)) {
+    inferredTerms.push('business', 'finance', 'market')
+  }
+  if (/(health|medical|hospital|vaccine|disease|wellness)/i.test(contextText)) {
+    inferredTerms.push('health', 'medical', 'hospital')
+  }
+  if (/(sport|football|soccer|match|league|athlete|team)/i.test(contextText)) {
+    inferredTerms.push('sports', 'competition', 'stadium')
+  }
+  if (/(climate|forest|ocean|emission|wildlife|environment)/i.test(contextText)) {
+    inferredTerms.push('climate', 'environment', 'nature')
+  }
+
+  const mergedTerms = [...new Set([...contextualTerms, ...inferredTerms])]
+  if (mergedTerms.length > 0) {
+    return mergedTerms.slice(0, 6).join(' ').trim()
+  }
+
+  return buildFallbackImageHint(title, excerpt)
+}
+
+function stripImageHintArtifacts(text = '') {
+  if (!text) return ''
+
+  return text
+    .split('\n')
+    .filter(line => !/^\s*image[_\s-]?hint\s*[:\-]/i.test(line.trim()))
+    .join('\n')
+    .replace(/(?:^|\n)\s*image[_\s-]?hint\s*[:\-]\s*[^\n]*/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function normalizeCategoryKey(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function createCategoryHintTerms(categoryRow) {
+  const combinedText = [categoryRow.slug, categoryRow.name, categoryRow.description]
+    .filter(Boolean)
+    .join(' ')
+
+  return extractMeaningfulTerms(combinedText, 8)
+}
+
+async function loadCategoryHintCache(forceRefresh = false) {
+  const now = Date.now()
+  if (!forceRefresh && categoryHintCache.loadedAt && now - categoryHintCache.loadedAt < CATEGORY_HINT_CACHE_TTL_MS) {
+    return categoryHintCache.bySlug
+  }
+
+  const result = await pool.query(`SELECT slug, name, description FROM categories`)
+  const nextCache = new Map()
+
+  for (const row of result.rows) {
+    const terms = createCategoryHintTerms(row)
+    if (row.slug) nextCache.set(normalizeCategoryKey(row.slug), terms)
+    if (row.name) nextCache.set(normalizeCategoryKey(row.name), terms)
+  }
+
+  categoryHintCache = {
+    bySlug: nextCache,
+    loadedAt: now,
+  }
+
+  return categoryHintCache.bySlug
+}
+
+async function getCategoryImageHints(categories = []) {
+  const normalizedCategories = [...new Set((categories || []).map(normalizeCategoryKey).filter(Boolean))]
+  if (normalizedCategories.length === 0) return []
+
+  try {
+    const cache = await loadCategoryHintCache()
+    const missingCategories = normalizedCategories.filter(category => !cache.has(category))
+
+    if (missingCategories.length > 0) {
+      await loadCategoryHintCache(true)
+    }
+
+    const refreshedCache = categoryHintCache.bySlug
+    return [...new Set(normalizedCategories.flatMap(category => refreshedCache.get(category) || []))]
+  } catch (error) {
+    console.error('[IMAGE] Failed to load category hints from database:', error.message)
+    return []
+  }
+}
+
+async function ensureCategoriesExist(categoryNames = []) {
+  const uniqueCategories = [...new Set((categoryNames || []).map(cat => String(cat || '').trim()).filter(Boolean))]
+  const categoryRows = []
+
+  for (const catName of uniqueCategories) {
+    const catSlug = catName.toLowerCase().replace(/\s+/g, '-')
+    const catResult = await pool.query(
+      `INSERT INTO categories (name, slug)
+       VALUES ($1, $2)
+       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+       RETURNING *`,
+      [catName, catSlug]
+    )
+
+    if (catResult.rows[0]) {
+      categoryRows.push(catResult.rows[0])
+    }
+  }
+
+  if (uniqueCategories.length > 0) {
+    categoryHintCache.loadedAt = 0
+  }
+
+  return categoryRows
+}
+
+function normalizeImageUrl(url, baseUrl = '') {
+  if (!url || typeof url !== 'string') return null
+  if (url.startsWith('data:')) return null
+
+  try {
+    return new URL(url, baseUrl).href
+  } catch {
+    return null
+  }
+}
+
+function isLikelyUsableImage(url) {
+  if (!url) return false
+
+  const lowerUrl = url.toLowerCase()
+  return !(
+    lowerUrl.includes('logo') ||
+    lowerUrl.includes('icon') ||
+    lowerUrl.includes('avatar') ||
+    lowerUrl.includes('sprite') ||
+    lowerUrl.includes('placeholder') ||
+    lowerUrl.includes('favicon') ||
+    lowerUrl.includes('advert') ||
+    lowerUrl.includes('banner')
+  )
+}
+
+function extractImageFromFeedItem(item) {
+  if (!item) return null
+
+  const directCandidates = [
+    item.enclosure?.url,
+    item.image?.url,
+    item.thumbnail,
+    item['media:thumbnail']?.url,
+    item['media:content']?.url,
+    Array.isArray(item['media:content']) ? item['media:content'][0]?.url : null,
+  ]
+
+  for (const candidate of directCandidates) {
+    const normalized = normalizeImageUrl(candidate)
+    if (isLikelyUsableImage(normalized)) return normalized
+  }
+
+  const htmlSources = [item.content, item['content:encoded'], item.summary]
+    .filter(Boolean)
+    .join(' ')
+
+  const imgMatch = htmlSources.match(/<img[^>]+src=["']([^"']+)["']/i)
+  if (!imgMatch) return null
+
+  const normalized = normalizeImageUrl(imgMatch[1])
+  return isLikelyUsableImage(normalized) ? normalized : null
+}
+
+async function fetchSourceImage(sourceUrl) {
+  if (!sourceUrl) return null
+
+  try {
+    const response = await axios.get(sourceUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: 10000,
+      maxRedirects: 5,
+    })
+
+    const $ = cheerio.load(response.data)
+    const candidates = [
+      $('meta[property="og:image:secure_url"]').attr('content'),
+      $('meta[property="og:image"]').attr('content'),
+      $('meta[name="twitter:image:src"]').attr('content'),
+      $('meta[name="twitter:image"]').attr('content'),
+      $('article img').first().attr('src'),
+      $('main img').first().attr('src'),
+      $('img').first().attr('src'),
+    ]
+
+    for (const candidate of candidates) {
+      const normalized = normalizeImageUrl(candidate, sourceUrl)
+      if (isLikelyUsableImage(normalized)) {
+        console.log(`[IMAGE] Using source page image: ${normalized.slice(0, 80)}...`)
+        return normalized
+      }
+    }
+  } catch (error) {
+    console.log(`[IMAGE] Source image lookup failed: ${error.message}`)
+  }
+
+  return null
+}
+
+async function buildUnsplashQueries({ title = '', excerpt = '', imageHint = '', categories = [], sourceName = '' }) {
+  const titleTerms = extractMeaningfulTerms(title, 6)
+  const excerptTerms = extractMeaningfulTerms(excerpt, 8).filter(term => !titleTerms.includes(term))
+  const imageHintText = sanitizeImageHint(imageHint)
+  const imageHintTerms = extractMeaningfulTerms(imageHintText, 6)
+  const categoryHints = await getCategoryImageHints(categories)
+  const combinedText = `${title} ${excerpt}`.toLowerCase()
+
+  const queries = [
+    imageHintText,
+    [...imageHintTerms.slice(0, 3), ...titleTerms.slice(0, 2)].join(' ').trim(),
+    [...titleTerms.slice(0, 3), ...excerptTerms.slice(0, 2)].join(' ').trim(),
+    titleTerms.length > 0 && categoryHints.length > 0
+      ? `${titleTerms.slice(0, 2).join(' ')} ${categoryHints.slice(0, 2).join(' ')}`.trim()
+      : '',
+    categoryHints.slice(0, 3).join(' ').trim(),
+  ]
+
+  if (/(meeting|summit|visit|minister|president|secretary|government|parliament|diplom)/i.test(combinedText)) {
+    queries.push('government diplomacy meeting')
+  }
+  if (/(market|trade|finance|earnings|startup|company|investor|stock)/i.test(combinedText)) {
+    queries.push('business finance market')
+  }
+  if (/(technology|tech|software|chip|robot|cyber|digital|ai)/i.test(combinedText)) {
+    queries.push('technology innovation digital')
+  }
+  if (/(climate|forest|ocean|emission|wildlife|environment)/i.test(combinedText)) {
+    queries.push('climate environment nature')
+  }
+  if (/reuters|bbc|guardian|ap news|al jazeera|npr/i.test(sourceName.toLowerCase()) && categoryHints.length > 0) {
+    queries.push(`${categoryHints.slice(0, 2).join(' ')} news`)
+  }
+
+  queries.push('world news')
+
+  return [...new Set(queries.map(query => query.replace(/\s+/g, ' ').trim()).filter(query => query.length >= 4))].slice(0, 4)
+}
+
+function scoreUnsplashResult(result, { primaryTerms = [], secondaryTerms = [], categoryHints = [] }) {
+  const searchableText = [
+    result.alt_description || '',
+    result.description || '',
+    result.slug || '',
+    Array.isArray(result.tags) ? result.tags.map(tag => tag.title || '').join(' ') : '',
+  ].join(' ').toLowerCase()
+
+  let score = 0
+  if (!searchableText.trim()) score -= 2
+
+  primaryTerms.forEach((term, index) => {
+    if (searchableText.includes(term)) score += index < 3 ? 12 : 6
+  })
+
+  secondaryTerms.forEach(term => {
+    if (searchableText.includes(term)) score += 4
+  })
+
+  categoryHints.forEach(term => {
+    if (searchableText.includes(term)) score += 3
+  })
+
+  if (result.width > result.height) score += 2
+  if (typeof result.likes === 'number') score += Math.min(result.likes / 100, 3)
+
+  return score
+}
+
+async function fetchImageFromUnsplash(context) {
   try {
     const unsplashKey = process.env.UNSPLASH_API_KEY
     if (!unsplashKey) {
@@ -103,54 +455,51 @@ async function fetchImageFromUnsplash(keywords) {
       return null
     }
 
-    // Extract better keywords from title - take meaningful words (skip "the", "a", etc)
-    const stopWords = ['the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'by', 'for', 'from', 'is', 'are', 'was', 'were', 'be', 'been', 'releases', 'released', 'issue']
-    const words = keywords.toLowerCase().split(/\s+/)
-      .filter(w => !stopWords.includes(w) && w.length > 3)
-      .slice(0, 3)
+    const imageContext = typeof context === 'string' ? { title: context } : (context || {})
+    const categoryHints = await getCategoryImageHints(imageContext.categories)
+    const queries = await buildUnsplashQueries(imageContext)
+    const imageHintTerms = extractMeaningfulTerms(sanitizeImageHint(imageContext.imageHint), 6)
+    const titleTerms = extractMeaningfulTerms(imageContext.title, 6)
+    const primaryTerms = [...new Set([...imageHintTerms, ...titleTerms])]
+    const secondaryTerms = extractMeaningfulTerms(imageContext.excerpt, 8).filter(term => !primaryTerms.includes(term))
 
-    let query = words.join(' ').trim()
+    for (const query of queries) {
+      console.log(`[IMAGE] Searching Unsplash for: "${query}"`)
+      const response = await axios.get('https://api.unsplash.com/search/photos', {
+        params: {
+          query,
+          per_page: 8,
+          orientation: 'landscape',
+          content_filter: 'high',
+          order_by: 'relevant'
+        },
+        headers: {
+          'Authorization': `Client-ID ${unsplashKey}`
+        },
+        timeout: 10000
+      })
 
-    // If query too short or generic, use fallback queries based on keywords
-    if (!query || query.length < 4) {
-      const lowerTitle = keywords.toLowerCase()
-      if (lowerTitle.includes('asean') || lowerTitle.includes('southeast')) query = 'tropical forest asia'
-      else if (lowerTitle.includes('trump')) query = 'government politics'
-      else if (lowerTitle.includes('war') || lowerTitle.includes('iran') || lowerTitle.includes('israel')) query = 'international conflict'
-      else if (lowerTitle.includes('ukraine')) query = 'war conflict'
-      else if (lowerTitle.includes('africa') || lowerTitle.includes('african')) query = 'africa landscape'
-      else if (lowerTitle.includes('climate') || lowerTitle.includes('environment')) query = 'nature environment'
-      else if (lowerTitle.includes('business') || lowerTitle.includes('market')) query = 'business finance'
-      else if (lowerTitle.includes('tech') || lowerTitle.includes('ai')) query = 'technology innovation'
-      else query = 'world landscape'
-    } else if (query === 'asean secretariat asean' || query === 'asean magazine' || query === 'secretariat magazine') {
-      // Override specific generic ASEAN queries
-      query = 'tropical forest coral reef'
-    } else if (query === 'melania trump shares') {
-      query = 'government white house'
-    } else if (!query || query.split(' ').length === 0) {
-      query = 'world news'
+      const results = Array.isArray(response.data.results) ? response.data.results : []
+      if (results.length === 0) {
+        console.log(`✗ No image results for: "${query}"`)
+        continue
+      }
+
+      const bestMatch = results
+        .map(result => ({
+          result,
+          score: scoreUnsplashResult(result, { primaryTerms, secondaryTerms, categoryHints })
+        }))
+        .sort((a, b) => b.score - a.score)[0]
+
+      if (bestMatch?.result?.urls?.regular) {
+        const imageUrl = bestMatch.result.urls.regular
+        console.log(`✓ Selected image (${query}, score ${bestMatch.score.toFixed(1)}): ${imageUrl.slice(0, 60)}...`)
+        return imageUrl
+      }
     }
 
-    console.log(`[DEBUG] Searching Unsplash for: "${query}"`)
-    const response = await axios.get('https://api.unsplash.com/search/photos', {
-      params: {
-        query: query,
-        per_page: 1,
-        orientation: 'landscape'
-      },
-      headers: {
-        'Authorization': `Client-ID ${unsplashKey}`
-      },
-      timeout: 10000
-    })
-
-    if (response.data.results && response.data.results.length > 0) {
-      const imageUrl = response.data.results[0].urls.regular
-      console.log(`✓ Fetched image (${query}): ${imageUrl.slice(0, 60)}...`)
-      return imageUrl
-    }
-    console.log(`✗ No image results for: "${query}"`)
+    console.log('✗ No suitable Unsplash image found')
     return null
   } catch (error) {
     console.error("[ERROR] Unsplash fetch:", error.message)
@@ -167,7 +516,8 @@ async function fetchRSS(url) {
       content: item.contentSnippet || item.content || item.description || '',
       link: item.link || '',
       pubDate: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
-      sourceUrl: url
+      sourceUrl: url,
+      sourceImage: extractImageFromFeedItem(item)
     }))
   } catch (error) {
     console.error("RSS fetch error:", error.message)
@@ -220,7 +570,13 @@ OUTPUT FORMAT (follow exactly):
    - BAD examples (too vague): "The Courtesy Visit", "Breaking News", "Official Statement", "New Development"
    - GOOD examples: "ASEAN Secretary-General Meets UN University Network Chief in Jakarta", "South Africa Composer Sues Comedian Over Lion King Chant Misrepresentation", "UN Votes to Label Transatlantic Slave Trade as Gravest Crime Against Humanity"
 2. Blank line
-3. Article body in MARKDOWN (minimum 800 words)
+3. Second line: IMAGE_HINT: 4-8 keywords in English for photo search
+  - Must be concrete visual concepts (scene/object/action), but keep it broad and contextual
+  - Avoid specific names of people, organizations, or exact locations
+  - Avoid generic words: "news", "update", "breaking"
+  - Example: IMAGE_HINT: diplomatic meeting conference room discussion
+4. Blank line
+5. Article body in MARKDOWN (minimum 800 words)
   - Keep journalistic narrative flow; structure must adapt to this specific story
   - Headings are OPTIONAL (use only when truly needed, max 2)
   - NEVER use generic templated headings: "Introduction", "Background", "Overview", "Conclusion", "Summary"
@@ -283,11 +639,30 @@ Begin:`
       /^(we need|we will|we are|we should|let me|let's|here's|here is|i will|i'll|i am|this article|the article|note:|note that|below is|as requested|certainly|sure,|of course|absolutely)/i,
       /^(writing|drafting|creating|generating|producing) (a|an|the) (news|article|comprehensive|original)/i,
       /^(source title|source content|output format|begin:|article:|---)/i,
+      /^image[_\s-]?hint\s*[:\-]/i,
       /^(format|instructions|example|aim for|provide|include|return only|keep neutral)/i,
       /^\*\*(important|note|output|format|instructions?)\*\*/i,
     ]
 
-    const rawLines = fullContent.split('\n')
+    let aiImageHint = ''
+    let rawLines = fullContent.split('\n')
+
+    for (let i = 0; i < Math.min(rawLines.length, 12); i++) {
+      const line = rawLines[i].trim()
+      const match = line.match(/^image[_\s-]?hint\s*[:\-]\s*(.+)$/i)
+      if (match && match[1]) {
+        aiImageHint = sanitizeImageHint(match[1])
+        rawLines.splice(i, 1)
+        break
+      }
+    }
+
+    if (!aiImageHint) {
+      const inlineHintMatch = fullContent.match(/image[_\s-]?hint\s*[:\-]\s*([^\n]+)/i)
+      if (inlineHintMatch && inlineHintMatch[1]) {
+        aiImageHint = sanitizeImageHint(inlineHintMatch[1])
+      }
+    }
 
     // Cari baris pertama yang benar-benar konten artikel
     // Strategy: cari heading # pertama, atau skip semua baris instruksi
@@ -322,7 +697,7 @@ Begin:`
     while (contentLines.length > 0 && !contentLines[0].trim()) contentLines.shift()
 
     // Gabungkan kembali sebagai konten bersih
-    let cleanContent = contentLines.join('\n').trim()
+    let cleanContent = stripImageHintArtifacts(contentLines.join('\n').trim())
 
     // Hilangkan baris instruksi yang mungkin masih tersisa di awal konten
     const cleanLineArr = cleanContent.split('\n')
@@ -340,6 +715,8 @@ Begin:`
       cleanContent = cleanLineArr.slice(skipUntil).join('\n').trim()
     }
 
+    cleanContent = stripImageHintArtifacts(cleanContent)
+
     // Buang heading template generik jika masih lolos dari model
     const templatedHeadingPattern = /^#{1,3}\s*(introduction|background|overview|conclusion|summary|context|analysis|key takeaways?|final thoughts?)\s*:?$/i
     cleanContent = cleanContent
@@ -348,6 +725,8 @@ Begin:`
       .join('\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim()
+
+    cleanContent = stripImageHintArtifacts(cleanContent)
 
     // === EXTRACT SEO HEADLINE ===
     let seoHeadline = null
@@ -425,11 +804,13 @@ Begin:`
     if (!excerpt.endsWith('.')) excerpt += '.'
 
     const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+    const finalImageHint = buildContextualImageHint(aiImageHint, seoHeadline, excerpt)
 
     return {
       title: seoHeadline,  // Use extracted SEO headline instead of source title
       content: cleanContent,
       excerpt,
+      image_hint: finalImageHint,
       author: 'AI News Editor',
       tokens: { prompt: usage.prompt_tokens, completion: usage.completion_tokens, total: usage.total_tokens },
       cost: (usage.total_tokens || 0) * 0.000001,
@@ -609,8 +990,30 @@ async function processSource(source, options = {}) {
       }
       console.log(`[DUP-CHECK-3] PASS - unique excerpt`)
 
-      // Fetch featured image from Unsplash
-      const featuredImage = await fetchImageFromUnsplash(generated.title)
+      // Auto-categorize with hybrid approach (keyword + AI)
+      let categories = detectCategory(generated.title, generated.content) || []
+
+      // Always use AI classification to find more specific categories
+      console.log("[AI Classification] Analyzing article for additional categories...")
+      const aiCategories = await classifyArticleWithAI(generated.title, generated.excerpt)
+
+      // Merge keyword categories + AI suggestions + forced categories (e.g. 'technology' for tech sources)
+      const allCategories = [...new Set([...categories, ...aiCategories, ...forcedCategories])]
+      console.log(`[Categorization] Final categories: ${allCategories.join(', ')}`)
+
+      const categoryRows = await ensureCategoriesExist(allCategories)
+
+      // Prefer source/article image first, then fallback to a more contextual Unsplash search
+      const featuredImage =
+        article.sourceImage ||
+        await fetchSourceImage(article.link) ||
+        await fetchImageFromUnsplash({
+          title: generated.title,
+          excerpt: generated.excerpt,
+          imageHint: generated.image_hint,
+          categories: categoryRows.map(cat => cat.slug || cat.name),
+          sourceName: source.name,
+        })
 
       const saved = await pool.query(
         `INSERT INTO articles 
@@ -634,25 +1037,8 @@ async function processSource(source, options = {}) {
         ]
       )
 
-      // Auto-categorize with hybrid approach (keyword + AI)
-      let categories = detectCategory(generated.title, generated.content) || []
-
-      // Always use AI classification to find more specific categories
-      console.log("[AI Classification] Analyzing article for additional categories...")
-      const aiCategories = await classifyArticleWithAI(generated.title, generated.excerpt)
-
-      // Merge keyword categories + AI suggestions + forced categories (e.g. 'technology' for tech sources)
-      const allCategories = [...new Set([...categories, ...aiCategories, ...forcedCategories])]
-      console.log(`[Categorization] Final categories: ${allCategories.join(', ')}`)
-
-      for (const catName of allCategories) {
+      for (const cat of categoryRows) {
         try {
-          const catResult = await pool.query(
-            `INSERT INTO categories (name, slug) 
-             VALUES ($1, $2) ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name RETURNING *`,
-            [catName, catName.toLowerCase().replace(/\s+/g, "-")]
-          )
-          const cat = catResult.rows[0]
           await pool.query(
             `INSERT INTO article_categories (article_id, category_id) 
              VALUES ($1, $2) ON CONFLICT DO NOTHING`,

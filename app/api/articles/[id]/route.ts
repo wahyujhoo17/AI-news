@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server"
-import { pool, getArticleById, getArticleBySlug } from "@/lib/db.js"
+import { pool, getArticleById, getArticleBySlug } from "@/lib/db"
 
 export async function GET(request: NextRequest) {
   try {

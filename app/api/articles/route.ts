@@ -7,27 +7,21 @@ export async function GET(request: Request) {
     const page = parseInt(searchParams.get("page") || "1")
     const limit = parseInt(searchParams.get("limit") || "12")
     const category = searchParams.get("category") || undefined
-    const offset = (page - 1) * limit
+    const search = (searchParams.get("search") || "").trim()
 
-    // Fetch more articles than needed to ensure we have data for pagination
-    const articles = await db.getRecentArticles(limit + 100, category)
-    const categories = await db.getAllCategories()
+    const { articles, pagination } = await db.getRecentArticlesPaginated({
+      page,
+      limit,
+      categorySlug: category,
+      search,
+    })
 
-    // Manual pagination
-    const paginatedArticles = articles.slice(offset, offset + limit)
-    const total = articles.length
-    const totalPages = Math.ceil(total / limit)
+    const categories = search ? [] : await db.getAllCategories()
 
     return NextResponse.json({
-      articles: paginatedArticles,
+      articles,
       categories,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasMore: page < totalPages,
-      },
+      pagination,
     })
   } catch (error) {
     console.error("Failed to fetch articles:", error)

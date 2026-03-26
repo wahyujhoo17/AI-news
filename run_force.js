@@ -1,6 +1,6 @@
 const axios = require('axios')
 const Parser = require('rss-parser')
-const { pool } = require('./lib/db')
+const { pool } = require('./lib/db-worker')
 
 async function fetchFirstGoogleNews(){
   const parser = new Parser()
