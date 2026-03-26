@@ -25,28 +25,16 @@ async function getArticleBySlug(slug: string): Promise<Article | null> {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "")
 
+    // Use the dedicated slug endpoint which does proper DB-level slug matching
     const res = await fetch(
-      `http://localhost:3001/api/articles?search=${encodeURIComponent(normalizedSlug)}`,
-      {
-        cache: "no-store",
-      }
+      `http://localhost:3001/api/articles/${encodeURIComponent(normalizedSlug)}`,
+      { cache: "no-store" }
     )
 
     if (!res.ok) return null
 
     const data = await res.json()
-    const articles = Array.isArray(data.articles) ? data.articles : []
-
-    return (
-      articles.find((article: Article) => {
-        const articleSlug = (article.title || "")
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)/g, "")
-        return articleSlug === normalizedSlug
-      }) || null
-    )
+    return data.article || null
   } catch (error) {
     console.error("Failed to fetch article:", error)
     return null

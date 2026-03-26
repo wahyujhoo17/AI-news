@@ -85,6 +85,7 @@ const FOOTBALL_FEEDS = [
   { id: 911, name: 'BBC Football', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', isFootball: true },
   { id: 912, name: 'Sky Sports Football', type: 'rss', url: 'https://www.skysports.com/rss/12040', isFootball: true },
   { id: 913, name: 'ESPN Soccer', type: 'rss', url: 'https://www.espn.com/espn/rss/soccer/news', isFootball: true },
+  { id: 914, name: 'BBC Premier League', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml', isFootball: true },
 ]
 
 // Konfigurasi rasio artikel per siklus crawl
@@ -150,48 +151,11 @@ function buildFallbackImageHint(title = '', content = '') {
   return terms.slice(0, 6).join(' ').trim()
 }
 
-const CONTEXTUAL_IMAGE_TERMS = new Set([
-  'meeting', 'conference', 'summit', 'diplomacy', 'government', 'politics', 'policy', 'parliament',
-  'technology', 'digital', 'innovation', 'software', 'business', 'finance', 'market', 'economy',
-  'health', 'medical', 'hospital', 'sports', 'football', 'stadium', 'education', 'school', 'university',
-  'research', 'science', 'laboratory', 'climate', 'environment', 'nature', 'energy', 'industry',
-  'security', 'military', 'conflict', 'international', 'global', 'city', 'office', 'team', 'discussion'
-])
-
 function buildContextualImageHint(aiImageHint = '', title = '', excerpt = '') {
-  const rawHintTerms = extractMeaningfulTerms(aiImageHint, 8)
-  const contextText = `${title} ${excerpt}`.toLowerCase()
-
-  const contextualTerms = rawHintTerms.filter(term => CONTEXTUAL_IMAGE_TERMS.has(term))
-
-  if (contextualTerms.length >= 3) {
-    return contextualTerms.slice(0, 6).join(' ').trim()
-  }
-
-  const inferredTerms = []
-  if (/(meeting|summit|visit|minister|president|secretary|government|parliament|diplom)/i.test(contextText)) {
-    inferredTerms.push('government', 'diplomacy', 'meeting')
-  }
-  if (/(technology|tech|software|chip|robot|cyber|digital|ai)/i.test(contextText)) {
-    inferredTerms.push('technology', 'innovation', 'digital')
-  }
-  if (/(market|trade|finance|startup|company|investor|stock|econom)/i.test(contextText)) {
-    inferredTerms.push('business', 'finance', 'market')
-  }
-  if (/(health|medical|hospital|vaccine|disease|wellness)/i.test(contextText)) {
-    inferredTerms.push('health', 'medical', 'hospital')
-  }
-  if (/(sport|football|soccer|match|league|athlete|team)/i.test(contextText)) {
-    inferredTerms.push('sports', 'competition', 'stadium')
-  }
-  if (/(climate|forest|ocean|emission|wildlife|environment)/i.test(contextText)) {
-    inferredTerms.push('climate', 'environment', 'nature')
-  }
-
-  const mergedTerms = [...new Set([...contextualTerms, ...inferredTerms])]
-  if (mergedTerms.length > 0) {
-    return mergedTerms.slice(0, 6).join(' ').trim()
-  }
+  // Trust the AI hint — it was already prompted to be broad/contextual.
+  // Just sanitize and use it directly; only fall back when it's empty.
+  const sanitized = sanitizeImageHint(aiImageHint)
+  if (sanitized.length >= 8) return sanitized
 
   return buildFallbackImageHint(title, excerpt)
 }
@@ -300,20 +264,32 @@ function normalizeImageUrl(url, baseUrl = '') {
   }
 }
 
+// Domains known to serve app icons / aggregator logos, not article photos
+const BLOCKED_IMAGE_HOSTS = new Set([
+  'news.google.com',
+  'www.gstatic.com',
+])
+
+// Specific URL substrings that identify CDN-proxied app/platform icons
+const BLOCKED_IMAGE_PATTERNS = [
+  'logo', 'icon', '/icons/', 'avatar', 'sprite', 'placeholder',
+  'favicon', 'advert', 'banner', 'app-image', 'brand-image',
+  '/app/', 'touch-icon', 'apple-touch', 'badge', 'watermark',
+]
+
 function isLikelyUsableImage(url) {
   if (!url) return false
-
   const lowerUrl = url.toLowerCase()
-  return !(
-    lowerUrl.includes('logo') ||
-    lowerUrl.includes('icon') ||
-    lowerUrl.includes('avatar') ||
-    lowerUrl.includes('sprite') ||
-    lowerUrl.includes('placeholder') ||
-    lowerUrl.includes('favicon') ||
-    lowerUrl.includes('advert') ||
-    lowerUrl.includes('banner')
-  )
+
+  if (lowerUrl.endsWith('.ico') || lowerUrl.endsWith('.svg')) return false
+  if (BLOCKED_IMAGE_PATTERNS.some(p => lowerUrl.includes(p))) return false
+
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (BLOCKED_IMAGE_HOSTS.has(host)) return false
+  } catch { }
+
+  return true
 }
 
 function extractImageFromFeedItem(item) {
@@ -387,35 +363,64 @@ async function buildUnsplashQueries({ title = '', excerpt = '', imageHint = '', 
   const categoryHints = await getCategoryImageHints(categories)
   const combinedText = `${title} ${excerpt}`.toLowerCase()
 
-  const queries = [
-    imageHintText,
-    [...imageHintTerms.slice(0, 3), ...titleTerms.slice(0, 2)].join(' ').trim(),
-    [...titleTerms.slice(0, 3), ...excerptTerms.slice(0, 2)].join(' ').trim(),
-    titleTerms.length > 0 && categoryHints.length > 0
-      ? `${titleTerms.slice(0, 2).join(' ')} ${categoryHints.slice(0, 2).join(' ')}`.trim()
-      : '',
-    categoryHints.slice(0, 3).join(' ').trim(),
-  ]
+  const queries = []
 
-  if (/(meeting|summit|visit|minister|president|secretary|government|parliament|diplom)/i.test(combinedText)) {
+  // Highest priority: AI-generated hint (already contextual)
+  if (imageHintText.length >= 8) queries.push(imageHintText)
+
+  // Second: blend hint terms with strong title terms
+  const blended = [...new Set([...imageHintTerms.slice(0, 3), ...titleTerms.slice(0, 3)])].join(' ').trim()
+  if (blended.length >= 4) queries.push(blended)
+
+  // Third: title terms alone
+  const titleQuery = titleTerms.slice(0, 4).join(' ').trim()
+  if (titleQuery.length >= 4) queries.push(titleQuery)
+
+  // Fourth: topic-specific fallbacks based on article content
+  if (/(attack|bomb|explos|shoot|kill|dead|wound|injur|terror|militant|hostage)/i.test(combinedText)) {
+    queries.push('conflict explosion destruction military')
+  }
+  if (/(war|battle|troops|soldier|army|airstr|missile|weapon|front|ceasefire)/i.test(combinedText)) {
+    queries.push('military soldiers armed forces war')
+  }
+  if (/(protest|demonstrat|riot|crowd|march|rally|clashes?)/i.test(combinedText)) {
+    queries.push('protest crowd demonstration street')
+  }
+  if (/(sanction|condemn|statement|issued|declared|resolution|ceasefire)/i.test(combinedText)) {
+    queries.push('government diplomacy statement press conference')
+  }
+  if (/(meeting|summit|visit|minister|president|secretary|parliament|diplom)/i.test(combinedText)) {
     queries.push('government diplomacy meeting')
   }
   if (/(market|trade|finance|earnings|startup|company|investor|stock)/i.test(combinedText)) {
     queries.push('business finance market')
   }
-  if (/(technology|tech|software|chip|robot|cyber|digital|ai)/i.test(combinedText)) {
+  if (/(technology|tech|software|chip|robot|cyber|digital|\bai\b)/i.test(combinedText)) {
     queries.push('technology innovation digital')
   }
   if (/(climate|forest|ocean|emission|wildlife|environment)/i.test(combinedText)) {
     queries.push('climate environment nature')
   }
-  if (/reuters|bbc|guardian|ap news|al jazeera|npr/i.test(sourceName.toLowerCase()) && categoryHints.length > 0) {
-    queries.push(`${categoryHints.slice(0, 2).join(' ')} news`)
+  if (/(health|medical|hospital|vaccine|disease|wellness)/i.test(combinedText)) {
+    queries.push('healthcare medical hospital')
+  }
+  if (/(sport|football|soccer|match|league|athlete|team)/i.test(combinedText)) {
+    queries.push('sports football match stadium')
+  }
+  if (/(election|vote|ballot|campaign|candidate|democracy|poll)/i.test(combinedText)) {
+    queries.push('election politics voting democracy')
+  }
+  if (/(earthquake|flood|hurricane|disaster|tsunami|wildfire|storm)/i.test(combinedText)) {
+    queries.push('natural disaster emergency crisis')
   }
 
-  queries.push('world news')
+  // Final fallback: category hints or generic news
+  if (categoryHints.length > 0) {
+    queries.push(categoryHints.slice(0, 3).join(' ').trim())
+  }
+  queries.push('world news international')
 
-  return [...new Set(queries.map(query => query.replace(/\s+/g, ' ').trim()).filter(query => query.length >= 4))].slice(0, 4)
+  return [...new Set(queries.map(q => q.replace(/\s+/g, ' ').trim()).filter(q => q.length >= 4))].slice(0, 5)
 }
 
 function scoreUnsplashResult(result, { primaryTerms = [], secondaryTerms = [], categoryHints = [] }) {
@@ -485,16 +490,19 @@ async function fetchImageFromUnsplash(context) {
         continue
       }
 
-      const bestMatch = results
+      const scored = results
         .map(result => ({
           result,
           score: scoreUnsplashResult(result, { primaryTerms, secondaryTerms, categoryHints })
         }))
-        .sort((a, b) => b.score - a.score)[0]
+        .sort((a, b) => b.score - a.score)
 
-      if (bestMatch?.result?.urls?.regular) {
+      const bestMatch = scored[0]
+
+      // Require a minimum positive score so we don't use completely unrelated images
+      if (bestMatch?.result?.urls?.regular && bestMatch.score >= 0) {
         const imageUrl = bestMatch.result.urls.regular
-        console.log(`✓ Selected image (${query}, score ${bestMatch.score.toFixed(1)}): ${imageUrl.slice(0, 60)}...`)
+        console.log(`✓ Selected image (query="${query}", score ${bestMatch.score.toFixed(1)}): ${imageUrl.slice(0, 60)}...`)
         return imageUrl
       }
     }
@@ -954,13 +962,38 @@ async function processSource(source, options = {}) {
   let generatedCount = 0
   for (const article of articles.slice(0, maxArticles)) {
     try {
-      // Verifikasi 1: Cek judul source sudah pernah di-process
+      // Verifikasi 0: Cek source_url sudah pernah di-simpan (paling kuat — mencegah duplikat lintas feed)
+      if (article.link) {
+        // Normalisasi URL: buang query string tracking agar variasi URL dianggap sama
+        let normalizedLink = article.link.trim()
+        try {
+          const u = new URL(normalizedLink)
+            // Hapus parameter tracking umum
+            ;['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+              'ref', 'referrer', 'source', 'via', 'from'].forEach(p => u.searchParams.delete(p))
+          normalizedLink = u.origin + u.pathname + (u.search !== '?' ? u.search : '') + u.hash
+          normalizedLink = normalizedLink.replace(/\/$/, '') // hapus trailing slash
+        } catch { }
+
+        const existingUrl = await pool.query(
+          "SELECT id FROM articles WHERE LOWER(TRIM(source_url)) = LOWER(TRIM($1)) LIMIT 1",
+          [normalizedLink]
+        )
+        if (existingUrl.rows.length > 0) {
+          console.log(`[DUP-CHECK-0] Skipping already-saved source_url: ${normalizedLink.slice(0, 80)}`)
+          continue
+        }
+        // Simpan back normalized link agar pengecekan berikutnya konsisten
+        article.link = normalizedLink
+      }
+
+      // Verifikasi 1: Cek judul source sudah pernah di-process (backup check)
       const existingSource = await pool.query(
-        "SELECT id FROM articles WHERE title = $1 AND source_name = $2",
-        [article.title, source.name]
+        "SELECT id FROM articles WHERE LOWER(TRIM(title)) = LOWER(TRIM($1))",
+        [article.title]
       )
       if (existingSource.rows.length > 0) {
-        console.log(`[PROCESS] Skipping duplicate source for ${source.name}: ${article.title}`)
+        console.log(`[DUP-CHECK-1] Skipping duplicate source title: ${article.title.slice(0, 60)}`)
         continue
       }
       console.log(`[PROCESS] Source check passed for ${source.name}: ${article.title}`)
@@ -970,11 +1003,11 @@ async function processSource(source, options = {}) {
 
       // Verifikasi 2: Cek judul artikel yang sudah di-generate
       const existingGenerated = await pool.query(
-        "SELECT id FROM articles WHERE title = $1",
+        "SELECT id FROM articles WHERE LOWER(TRIM(title)) = LOWER(TRIM($1))",
         [generated.title]
       )
       if (existingGenerated.rows.length > 0) {
-        console.log(`[DUP-CHECK-2] Skipping duplicate generated title: ${generated.title}`)
+        console.log(`[DUP-CHECK-2] Skipping duplicate generated title: ${generated.title.slice(0, 60)}`)
         continue
       }
       console.log(`[DUP-CHECK-2] PASS - new generated title`)
@@ -982,10 +1015,10 @@ async function processSource(source, options = {}) {
       // Verifikasi 3: Cek similarity pada excerpt (similar text check)
       const existingSimilar = await pool.query(
         "SELECT id, excerpt FROM articles WHERE excerpt LIKE $1 LIMIT 1",
-        [`%${generated.excerpt.slice(0, 50)}%`]
+        [`%${generated.excerpt.slice(0, 60)}%`]
       )
       if (existingSimilar.rows.length > 0) {
-        console.log(`[DUP-CHECK-3] Skipping similar excerpt: ${generated.excerpt.slice(0, 40)}`)
+        console.log(`[DUP-CHECK-3] Skipping similar excerpt: ${generated.excerpt.slice(0, 60)}`)
         continue
       }
       console.log(`[DUP-CHECK-3] PASS - unique excerpt`)

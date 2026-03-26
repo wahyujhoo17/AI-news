@@ -145,8 +145,13 @@ function HomeContent() {
   // Main grid articles (next 6 with images)
   const mainArticles = articlesWithImage.slice(1, 7)
 
-  // Remaining articles for pagination display (rest of the page)
-  const sidebarArticles = articlesWithoutImage.slice(0, 6)
+  // Remaining articles for sidebar display
+  // If no image-less articles exist, fall back to articles with images after the main grid
+  const sidebarFromNoImage = articlesWithoutImage.slice(0, 6)
+  const sidebarArticles =
+    sidebarFromNoImage.length > 0
+      ? sidebarFromNoImage
+      : articlesWithImage.slice(7, 11) // next 4 after featured(0) + mainGrid(1-6)
 
   const handleCategoryChange = (slug: string) => {
     setSelectedCategory(slug)
