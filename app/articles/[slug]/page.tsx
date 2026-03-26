@@ -138,6 +138,101 @@ function renderMarkdownContent(content: string) {
       continue
     }
 
+    // Check for mermaid flowchart
+    if (trimmedLine.toLowerCase().startsWith("```mermaid")) {
+      const flowchartLines: string[] = []
+      i++ // Skip opening ```mermaid
+
+      while (i < lines.length && !lines[i].trim().startsWith("```")) {
+        flowchartLines.push(lines[i])
+        i++
+      }
+      i++ // Skip closing ```
+
+      if (flowchartLines.length > 0) {
+        const flowchartCode = flowchartLines.join("\n")
+        elements.push(
+          <div key={`flowchart-${elements.length}`} className="my-8 p-6 bg-gray-900/50 border border-cyan-500/20 rounded-lg overflow-x-auto">
+            <div className="text-sm text-gray-400 mb-3">Flowchart</div>
+            <pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap break-words">
+              {flowchartCode}
+            </pre>
+            <div className="mt-3 text-xs text-gray-500">
+              💡 Mermaid flowchart - Preview requires Mermaid renderer
+            </div>
+          </div>
+        )
+      }
+      continue
+    }
+
+    // Check for markdown tables
+    if (trimmedLine.includes("|")) {
+      const tableLines: string[] = []
+      let j = i
+
+      // Collect table rows
+      while (j < lines.length) {
+        const currentLine = lines[j].trim()
+        if (!currentLine.includes("|") || !currentLine.startsWith("|")) break
+        tableLines.push(currentLine)
+        j++
+      }
+
+      // Check if it's a valid table (needs header and separator)
+      if (tableLines.length >= 2 && tableLines[1].includes("-")) {
+        // Parse header
+        const headerCells = tableLines[0]
+          .split("|")
+          .map((cell) => cell.trim())
+          .filter((cell) => cell.length > 0)
+
+        // Parse body rows
+        const bodyRows = tableLines.slice(2).map((row) =>
+          row
+            .split("|")
+            .map((cell) => cell.trim())
+            .filter((cell) => cell.length > 0)
+        )
+
+        elements.push(
+          <div key={`table-${elements.length}`} className="my-8 overflow-x-auto">
+            <table className="w-full border-collapse border border-cyan-500/30">
+              <thead>
+                <tr className="bg-cyan-500/10">
+                  {headerCells.map((cell, idx) => (
+                    <th
+                      key={idx}
+                      className="border border-cyan-500/20 px-4 py-3 text-left font-bold text-cyan-300 text-sm"
+                    >
+                      {renderInlineMarkdown(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bodyRows.map((row, rowIdx) => (
+                  <tr key={rowIdx} className={rowIdx % 2 === 0 ? "bg-gray-900/30" : "bg-gray-900/10"}>
+                    {row.map((cell, cellIdx) => (
+                      <td
+                        key={cellIdx}
+                        className="border border-cyan-500/20 px-4 py-3 text-gray-300 text-sm"
+                      >
+                        {renderInlineMarkdown(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+
+        i = j
+        continue
+      }
+    }
+
     const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/)
     if (headingMatch) {
       const level = headingMatch[1].length

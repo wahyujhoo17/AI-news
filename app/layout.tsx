@@ -4,6 +4,14 @@ export const metadata = {
   title: "Qbitz - AI-Powered News Platform",
   description: "Revolutionary news platform powered by AI. Real-time analysis, automatic categorization, and original content from global sources.",
   keywords: ["news", "ai", "artificial intelligence", "qbitz", "technology"],
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
   openGraph: {
     title: "Qbitz - AI-Powered News",
     description: "News powered by artificial intelligence",
