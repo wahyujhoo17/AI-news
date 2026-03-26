@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useMemo, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
+import Navbar from "./components/Navbar"
+import Footer from "./components/Footer"
 
 interface Article {
   id: number
@@ -15,6 +18,7 @@ interface Article {
   author?: string
   views?: number
   categories?: string
+  featured_image?: string
 }
 
 interface Category {
@@ -24,47 +28,99 @@ interface Category {
   color?: string
 }
 
+interface PaginationData {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasMore: boolean
+}
+
+interface ApiResponse {
+  articles: Article[]
+  categories: Category[]
+  pagination?: PaginationData
+}
+
+function generateSlug(title: string): string {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+}
+
+const ARTICLES_PER_PAGE = 12
+
 function HomeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const categoryParam = searchParams.get("category") || ""
+  const pageParam = parseInt(searchParams.get("page") || "1")
 
   const [articles, setArticles] = useState<Article[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [selectedCategory, setSelectedCategory] = useState(categoryParam)
-  const [darkMode, setDarkMode] = useState(false)
+  const [currentPage, setCurrentPage] = useState(pageParam)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
   useEffect(() => {
-    fetch("/api/articles")
+    setLoading(true)
+    // Fetch with pagination from backend
+    const queryParams = new URLSearchParams({
+      page: currentPage.toString(),
+      limit: "12",
+    })
+    if (selectedCategory) {
+      queryParams.append("category", selectedCategory)
+    }
+
+    fetch(`/api/articles?${queryParams}`)
       .then((res) => res.json())
-      .then((data) => {
+      .then((data: ApiResponse) => {
         setArticles(Array.isArray(data.articles) ? data.articles : [])
-        setCategories(Array.isArray(data.categories) ? data.categories : [])
+
+        const allCategories = Array.isArray(data.categories) ? data.categories : []
+
+        const categoryCount: { [key: string]: number } = {}
+        ;(Array.isArray(data.articles) ? data.articles : []).forEach((article: Article) => {
+          if (article.categories) {
+            article.categories.split(", ").forEach((cat) => {
+              const trimmed = cat.trim()
+              categoryCount[trimmed] = (categoryCount[trimmed] || 0) + 1
+            })
+          }
+        })
+
+        const sortedCategories = allCategories
+          .map((cat: Category) => ({
+            ...cat,
+            count: categoryCount[cat.name] || 0,
+          }))
+          .sort((a: { count: number }, b: { count: number }) => b.count - a.count)
+          .slice(0, 8)
+
+        setCategories(sortedCategories)
+
+        // Set pagination data
+        if (data.pagination) {
+          setTotalPages(data.pagination.totalPages)
+          setTotal(data.pagination.total)
+        }
         setLoading(false)
       })
       .catch((err) => {
         console.error("Failed to fetch:", err)
         setLoading(false)
       })
-  }, [])
+  }, [currentPage, selectedCategory])
 
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark")
-    } else {
-      document.documentElement.classList.remove("dark")
-    }
-  }, [darkMode])
-
+  // Since pagination is now backend-driven, use articles directly
   const filteredArticles = useMemo(() => {
     let result = articles
-    if (selectedCategory) {
-      result = result.filter((a) =>
-        a.categories?.toLowerCase().includes(selectedCategory.toLowerCase())
-      )
-    }
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(
@@ -74,109 +130,64 @@ function HomeContent() {
       )
     }
     return result
-  }, [articles, selectedCategory, search])
+  }, [articles, search])
+
+  // Separate articles with and without featured images from paginated data
+  const articlesWithImage = filteredArticles.filter((a) => a.featured_image)
+  const articlesWithoutImage = filteredArticles.filter((a) => !a.featured_image)
+
+  // Featured articles (top article with image)
+  const featured = articlesWithImage.slice(0, 1)
+
+  // Main grid articles (next 6 with images)
+  const mainArticles = articlesWithImage.slice(1, 7)
+
+  // Remaining articles for pagination display (rest of the page)
+  const sidebarArticles = articlesWithoutImage.slice(0, 6)
 
   const handleCategoryChange = (slug: string) => {
     setSelectedCategory(slug)
+    setCurrentPage(1)
     router.push(slug ? `/?category=${slug}` : "/")
   }
 
-  const toggleDarkMode = () => setDarkMode(!darkMode)
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mb-6"></div>
-          <h2 className="text-2xl font-bold text-white mb-2">AI News</h2>
-          <p className="text-gray-400">Memuat berita terbaru...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (filteredArticles.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center max-w-md px-6">
-          <h1 className="text-4xl font-bold text-white mb-4">AI News</h1>
-          <p className="text-gray-400 text-lg">
-            Belum ada artikel. Silakan tambahkan sumber berita di admin panel untuk mulai generate artikel.
-          </p>
-        </div>
-      </div>
-    )
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+    router.push(`/?page=${page}${selectedCategory ? `&category=${selectedCategory}` : ""}`)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <header className="bg-gradient-to-r from-blue-600 to-purple-600 shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                <span className="text-blue-600 text-2xl font-bold">AI</span>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">AI News</h1>
-                <p className="text-blue-100 text-sm">Berita dikelola oleh kecerdasan buatan</p>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Cari berita..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full sm:w-64 px-4 py-2 pl-10 rounded-full bg-white/90 backdrop-blur text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                />
-                <svg className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-
-              <button
-                onClick={toggleDarkMode}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors flex items-center gap-2"
-              >
-                {darkMode ? (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-16 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8 overflow-x-auto">
+    <>
+      {/* Category Filter Bar */}
+      <div className="relative z-40 backdrop-blur-sm bg-black/30 border-b border-cyan-500/20">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 overflow-x-auto">
           <div className="flex gap-2 whitespace-nowrap">
             <button
               onClick={() => handleCategoryChange("")}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                 !selectedCategory
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200"
+                  ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/50"
+                  : "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white border border-gray-700/50"
               }`}
             >
-              Semua
+              All
             </button>
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => handleCategoryChange(cat.slug)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                   selectedCategory === cat.slug
-                    ? "text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200"
+                    ? "text-white shadow-lg"
+                    : "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50"
                 }`}
                 style={
                   selectedCategory === cat.slug
-                    ? { backgroundColor: cat.color || "#3B82F6" }
+                    ? {
+                        background: `linear-gradient(135deg, ${cat.color || "#06B6D4"}, ${cat.color || "#06B6D4"})`,
+                        boxShadow: `0 0 20px ${cat.color || "#06B6D4"}40`,
+                      }
                     : {}
                 }
               >
@@ -187,134 +198,281 @@ function HomeContent() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredArticles.map((article) => (
-            <article
-              key={article.id}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col"
-            >
-              <div className="h-48 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
-                <svg className="w-20 h-20 text-blue-300 dark:text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M4 4h16v16H4V4zm2 2v12h12V6H6zm3 3h2v2H9v-2zm-4 0h2v2H5v-2zm8 0h2v2h-2v-2z" />
-                </svg>
-              </div>
-
-              <div className="p-6 flex-1 flex flex-col">
-                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-3">
-                  <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full text-xs font-medium">
-                    {article.source_name}
-                  </span>
-                  <span className="mx-2">•</span>
-                  <time>{new Date(article.created_at).toLocaleDateString("id-ID")}</time>
-                  {article.views !== undefined && (
-                    <>
-                      <span className="mx-2">•</span>
-                      <span>{article.views} views</span>
-                    </>
-                  )}
-                </div>
-
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 leading-tight">
-                  {article.title}
-                </h2>
-
-                <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-3 flex-1">
-                  {article.excerpt || article.content.slice(0, 150) + "..."}
-                </p>
-
-                {article.author && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    By {article.author}
-                  </p>
-                )}
-
-                {article.categories && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {article.categories.split(", ").map((cat, i) => (
-                      <span
-                        key={i}
-                        className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-md"
-                      >
-                        {cat}
-                      </span>
-                    ))}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        {loading ? (
+          <ArticleSkeleton />
+        ) : filteredArticles.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <>
+            {/* Featured Section - Large Featured Article */}
+            {featured.length > 0 && (
+              <div className="mb-12">
+                <h2 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-4">Featured</h2>
+                <Link
+                  href={`/articles/${generateSlug(featured[0].title)}`}
+                  className="group relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-black/40 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-300 flex flex-col md:flex-row h-96"
+                >
+                  <div className="h-full md:w-2/3 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950 overflow-hidden relative">
+                    {featured[0].featured_image && (
+                      <img
+                        src={featured[0].featured_image}
+                        alt={featured[0].title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
                   </div>
-                )}
 
-                <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700">
-                  <a
-                    href={`/articles/${article.title
-                      .toLowerCase()
-                      .trim()
-                      .replace(/[^a-z0-9]+/g, "-")
-                      .replace(/(^-|-$)/g, "")}`}
-                    className="block w-full text-center bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-colors"
-                  >
-                    Baca Selengkapnya
-                  </a>
+                  <div className="p-8 md:w-1/3 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                        <span className="text-xs font-semibold text-cyan-400 tracking-widest">FEATURED</span>
+                      </div>
+                      <h3 className="text-2xl font-black text-white mb-3 group-hover:text-cyan-300 transition-colors line-clamp-3">
+                        {featured[0].title}
+                      </h3>
+                      <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+                        {featured[0].excerpt || featured[0].content.slice(0, 100) + "..."}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                      <span>{new Date(featured[0].created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                      {featured[0].categories && (
+                        <>
+                          <span className="text-gray-600">•</span>
+                          <span className="text-cyan-300 font-semibold">{featured[0].categories.split(",")[0].trim()}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            )}
+
+            {/* Main Grid - 3 columns + Sidebar */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+              {/* Main Column - 2/3 width */}
+              <div className="lg:col-span-2">
+                <h2 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-4">Latest News</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {mainArticles.map((article) => (
+                    <Link
+                      key={article.id}
+                      href={`/articles/${generateSlug(article.title)}`}
+                      className="group relative overflow-hidden rounded-xl border border-cyan-500/20 bg-black/40 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/20 flex flex-col"
+                    >
+                      <div className="h-40 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950 overflow-hidden relative">
+                        {article.featured_image && (
+                          <img
+                            src={article.featured_image}
+                            alt={article.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      </div>
+
+                      <div className="p-4 flex-1 flex flex-col">
+                        <div className="text-xs text-gray-400 mb-2">
+                          {new Date(article.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </div>
+                        <h3 className="text-base font-bold text-white mb-2 line-clamp-2 group-hover:text-cyan-300 transition-colors">
+                          {article.title}
+                        </h3>
+                        <p className="text-gray-400 text-sm line-clamp-2 flex-1">
+                          {article.excerpt || article.content.slice(0, 80) + "..."}
+                        </p>
+                        {article.categories && (
+                          <div className="mt-3 text-xs text-cyan-300 font-semibold">
+                            {article.categories.split(",")[0].trim()}
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
                 </div>
               </div>
-            </article>
-          ))}
-        </div>
+
+              {/* Sidebar - 1/3 width */}
+              {sidebarArticles.length > 0 && (
+              <div className="lg:col-span-1">
+                <h2 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-4">More Stories</h2>
+                <div className="space-y-5">
+                  {sidebarArticles.map((article) => (
+                    <Link
+                      key={article.id}
+                      href={`/articles/${generateSlug(article.title)}`}
+                      className="group block border-b border-cyan-500/10 pb-4 hover:text-cyan-300 transition-colors last:border-b-0"
+                    >
+                      <div className="text-xs text-gray-400 mb-1">
+                        {new Date(article.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </div>
+                      <h3 className="text-sm font-bold text-white group-hover:text-cyan-300 line-clamp-2 leading-snug">
+                        {article.title}
+                      </h3>
+                      {article.categories && (
+                        <div className="text-xs text-cyan-300/70 mt-2">
+                          {article.categories.split(",")[0].trim()}
+                        </div>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              )}
+            </div>
+
+            {/* Pagination Section */}
+            {totalPages > 1 && (
+              <div>
+                <h2 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-6">All Articles</h2>
+                <div className="text-sm text-gray-400 mb-6">
+                  Showing page {currentPage} of {totalPages} ({total} articles)
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="flex justify-center items-center gap-2 mb-12">
+                  <button
+                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 rounded-lg border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    ← Previous
+                  </button>
+
+                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                    let page
+                    if (totalPages <= 5) {
+                      page = i + 1
+                    } else if (currentPage <= 3) {
+                      page = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      page = totalPages - 4 + i
+                    } else {
+                      page = currentPage - 2 + i
+                    }
+                    return page
+                  }).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`px-3 py-2 rounded-lg transition-all ${
+                        currentPage === page
+                          ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white"
+                          : "border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 rounded-lg border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </main>
-
-      <footer className="bg-gray-900 text-white py-12 mt-12">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h3 className="text-2xl font-bold mb-4">AI News</h3>
-          <p className="text-gray-400 mb-6">
-            Berita dikelola oleh artificial intelligence. Always up-to-date.
-          </p>
-          <div className="flex justify-center gap-6 text-sm text-gray-400">
-            <span>&copy; {new Date().getFullYear()} AI News</span>
-            <span>•</span>
-            <span>Powered by OpenRouter</span>
-          </div>
-        </div>
-      </footer>
-    </div>
-  )
-}
-
-function ArticleGridSkeleton() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden animate-pulse">
-          <div className="h-48 bg-gray-200 dark:bg-gray-700"></div>
-          <div className="p-6 space-y-4">
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
-            <div className="h-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          </div>
-        </div>
-      ))}
-    </div>
+    </>
   )
 }
 
 function EmptyState() {
   return (
     <div className="text-center py-20">
-      <div className="w-24 h-24 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
-        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+      <div className="w-24 h-24 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
+        <svg className="w-12 h-12 text-cyan-400/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 21l-4.35-4.35m0 0A7.5 7.5 0 103 10.5a7.5 7.5 0 0113.65 6.15z" />
         </svg>
       </div>
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Belum Ada Artikel</h2>
-      <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-        Tambahkan sumber berita di admin panel untuk mulai generate artikel otomatis.
+      <h2 className="text-2xl font-bold text-white mb-2">No Articles Found</h2>
+      <p className="text-gray-400 max-w-md mx-auto">
+        No articles match your search criteria. Try adjusting the filters or keywords.
       </p>
     </div>
   )
 }
 
+
 export default function Home() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center"><div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent"></div></div>}>
-      <HomeContent />
-    </Suspense>
+    <div className="min-h-screen bg-black text-white overflow-hidden">
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950 to-black"></div>
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl"></div>
+      </div>
+
+      <Navbar />
+
+      <Suspense fallback={<div className="h-screen"></div>}>
+        <HomeContent />
+      </Suspense>
+
+      <Footer />
+    </div>
+  )
+}
+
+function ArticleSkeleton() {
+  return (
+    <>
+      {/* Featured Skeleton */}
+      <div className="mb-12">
+        <div className="h-4 w-24 bg-gray-800 rounded mb-4 animate-pulse"></div>
+        <div className="rounded-2xl border border-cyan-500/30 bg-black/40 overflow-hidden flex flex-col md:flex-row h-96 animate-pulse">
+          <div className="h-full md:w-2/3 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950"></div>
+          <div className="p-8 md:w-1/3 space-y-4">
+            <div className="h-6 bg-gray-800 rounded w-3/4"></div>
+            <div className="space-y-2">
+              <div className="h-4 bg-gray-800 rounded w-full"></div>
+              <div className="h-4 bg-gray-800 rounded w-5/6"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+        <div className="lg:col-span-2">
+          <div className="h-4 w-32 bg-gray-800 rounded mb-4 animate-pulse"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-cyan-500/20 bg-black/40 overflow-hidden animate-pulse">
+                <div className="h-40 bg-gradient-to-br from-slate-900 to-slate-950"></div>
+                <div className="p-4 space-y-3">
+                  <div className="h-3 bg-gray-800 rounded w-1/3"></div>
+                  <div className="h-4 bg-gray-800 rounded w-full"></div>
+                  <div className="h-3 bg-gray-800 rounded w-2/3"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="lg:col-span-1">
+          <div className="h-4 w-32 bg-gray-800 rounded mb-4 animate-pulse"></div>
+          <div className="space-y-5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="border-b border-cyan-500/10 pb-4 last:border-b-0">
+                <div className="h-3 bg-gray-800 rounded w-1/4 mb-2"></div>
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-800 rounded w-full"></div>
+                  <div className="h-4 bg-gray-800 rounded w-5/6"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
   )
 }

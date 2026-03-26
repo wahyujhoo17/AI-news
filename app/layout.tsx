@@ -1,20 +1,20 @@
-import "./globals.css"
+import './globals.css'
 
 export const metadata = {
-  title: "AI News - Berita Dikelola oleh Kecerdasan Buatan",
-  description: "AI News menyajikan berita terkini yang digenerate dan dikelola oleh artificial intelligence. Kategori: Teknologi, Bisnis, Olahraga, Kesehatan, dan lainnya.",
-  keywords: ["berita", "ai", "artificial intelligence", "news", "teknologi"],
+  title: "Qbitz - AI-Powered News Platform",
+  description: "Revolutionary news platform powered by AI. Real-time analysis, automatic categorization, and original content from global sources.",
+  keywords: ["news", "ai", "artificial intelligence", "qbitz", "technology"],
   openGraph: {
-    title: "AI News",
-    description: "Berita dikelola oleh AI",
+    title: "Qbitz - AI-Powered News",
+    description: "News powered by artificial intelligence",
     type: "website",
-    locale: "id_ID",
-    siteName: "AI News",
+    locale: "en_US",
+    siteName: "Qbitz",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI News",
-    description: "Berita dikelola oleh AI",
+    title: "Qbitz",
+    description: "AI-powered news platform for the digital era",
   },
 }
 
@@ -25,9 +25,41 @@ export default function RootLayout({
 }) {
   return (
     <html lang="id" className="scroll-smooth">
-      <body className="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors">
+      <head>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;900&display=swap');
+          
+          html {
+            font-family: 'Inter', sans-serif;
+          }
+          
+          code, pre {
+            font-family: 'JetBrains Mono', monospace;
+          }
+          
+          /* Smooth scrollbar */
+          ::-webkit-scrollbar {
+            width: 8px;
+          }
+          
+          ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+          }
+          
+          ::-webkit-scrollbar-thumb {
+            background: rgba(34, 211, 238, 0.3);
+            border-radius: 4px;
+          }
+          
+          ::-webkit-scrollbar-thumb:hover {
+            background: rgba(34, 211, 238, 0.5);
+          }
+        `}</style>
+      </head>
+      <body className="bg-black text-white antialiased">
         {children}
       </body>
     </html>
   )
 }
+

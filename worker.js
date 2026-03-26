@@ -22,7 +22,7 @@ const BUILTIN_FEEDS = [
   { name: 'The Guardian', type: 'rss', url: 'https://www.theguardian.com/world/rss' }
 ]
 
-// Tech-specific feeds — selalu menghasilkan 30% dari total artikel per siklus
+// Tech-specific feeds
 const TECH_FEEDS = [
   { id: 901, name: 'TechCrunch', type: 'rss', url: 'https://techcrunch.com/feed/', isTech: true },
   { id: 902, name: 'The Verge', type: 'rss', url: 'https://www.theverge.com/rss/index.xml', isTech: true },
@@ -31,11 +31,19 @@ const TECH_FEEDS = [
   { id: 905, name: 'MIT Tech Review', type: 'rss', url: 'https://www.technologyreview.com/feed/', isTech: true },
 ]
 
+// Football-specific feeds
+const FOOTBALL_FEEDS = [
+  { id: 911, name: 'BBC Football', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', isFootball: true },
+  { id: 912, name: 'Sky Sports Football', type: 'rss', url: 'https://www.skysports.com/rss/12040', isFootball: true },
+  { id: 913, name: 'ESPN Soccer', type: 'rss', url: 'https://www.espn.com/espn/rss/soccer/news', isFootball: true },
+]
+
 // Konfigurasi rasio artikel per siklus crawl
 const CRAWL_CONFIG = {
-  TOTAL_BUDGET: 10,      // total artikel target per siklus
-  TECH_RATIO: 0.30,      // 30% tech
-  MAX_PER_SOURCE: 3,     // maks artikel diambil per sumber
+  TOTAL_BUDGET: 10,        // total artikel target per siklus
+  TECH_RATIO: 0.05,        // 5% technology
+  FOOTBALL_RATIO: 0.10,    // 10% football
+  MAX_PER_SOURCE: 3,       // maks artikel diambil per sumber
 }
 
 async function fetchImageFromUnsplash(keywords) {
@@ -164,11 +172,16 @@ OUTPUT FORMAT (follow exactly):
    - BAD examples (too vague): "The Courtesy Visit", "Breaking News", "Official Statement", "New Development"
    - GOOD examples: "ASEAN Secretary-General Meets UN University Network Chief in Jakarta", "South Africa Composer Sues Comedian Over Lion King Chant Misrepresentation", "UN Votes to Label Transatlantic Slave Trade as Gravest Crime Against Humanity"
 2. Blank line
-3. Article body in markdown (minimum 800 words)
-   - Use ## for section headings
-   - Use **bold** for key terms
-   - Write in neutral journalistic tone
-   - Include context, analysis, implications
+3. Article body in MARKDOWN (minimum 800 words)
+  - Keep journalistic narrative flow; structure must adapt to this specific story
+  - Headings are OPTIONAL (use only when truly needed, max 2)
+  - NEVER use generic templated headings: "Introduction", "Background", "Overview", "Conclusion", "Summary"
+  - Do not follow a rigid pattern like heading → short paragraph → heading repeatedly
+  - Tables are OPTIONAL: include only when there is structured data (dates, figures, comparisons)
+  - Mermaid flowchart/diagram blocks are OPTIONAL: include only if chronology/process is central and clearer as a diagram
+  - If context is purely narrative, do NOT force tables or flowcharts
+  - Use **bold** only when it adds clarity, not in every paragraph
+  - Include context, analysis, implications, and concrete details relevant to this specific story
 
 Do NOT include any preamble, explanation, or commentary. Start directly with the headline on line 1.
 
@@ -180,11 +193,11 @@ Begin:`
       {
         model: groqModel,
         messages: [
-          { role: 'system', content: 'You are a professional news journalist. Always start your response directly with the headline. Do not include any preamble, explanation, meta-commentary, or instructions. Output only the article.' },
+          { role: 'system', content: 'You are a professional news journalist. Always start directly with the headline. Output valid Markdown only. Avoid templated section structures and generic headings like Introduction/Conclusion. Use natural, context-driven narrative flow. Tables and mermaid flowcharts are optional and must not be forced; use them only when they genuinely improve clarity for structured/process-heavy stories. Do not include any preamble, explanation, meta-commentary, or instructions.' },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 2500,
-        temperature: 0.65
+        max_tokens: 3000,
+        temperature: 0.8
       },
       {
         headers: {
@@ -278,6 +291,15 @@ Begin:`
     if (skipUntil > 0) {
       cleanContent = cleanLineArr.slice(skipUntil).join('\n').trim()
     }
+
+    // Buang heading template generik jika masih lolos dari model
+    const templatedHeadingPattern = /^#{1,3}\s*(introduction|background|overview|conclusion|summary|context|analysis|key takeaways?|final thoughts?)\s*:?$/i
+    cleanContent = cleanContent
+      .split('\n')
+      .filter(line => !templatedHeadingPattern.test(line.trim()))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
 
     // === EXTRACT SEO HEADLINE ===
     let seoHeadline = null
@@ -621,15 +643,24 @@ async function runCrawl() {
   console.log("Running scheduled crawl...")
   console.log("Starting crawl job...")
 
-  const techBudget = Math.round(CRAWL_CONFIG.TOTAL_BUDGET * CRAWL_CONFIG.TECH_RATIO)  // 3
-  const generalBudget = CRAWL_CONFIG.TOTAL_BUDGET - techBudget                            // 7
+  // Untuk rasio kecil (5%) dan budget kecil (10), gunakan pembulatan probabilistik
+  // agar rata-rata antar siklus tetap sesuai target.
+  const probabilisticBudget = (total, ratio) => {
+    const exact = total * ratio
+    const base = Math.floor(exact)
+    const remainder = exact - base
+    return base + (Math.random() < remainder ? 1 : 0)
+  }
 
-  console.log(`[BUDGET] Cycle target: ${CRAWL_CONFIG.TOTAL_BUDGET} artikel | Tech: ${techBudget} (${CRAWL_CONFIG.TECH_RATIO * 100}%) | General: ${generalBudget} (${(1 - CRAWL_CONFIG.TECH_RATIO) * 100}%)`)
+  const techBudget = probabilisticBudget(CRAWL_CONFIG.TOTAL_BUDGET, CRAWL_CONFIG.TECH_RATIO)
+  const footballBudget = probabilisticBudget(CRAWL_CONFIG.TOTAL_BUDGET, CRAWL_CONFIG.FOOTBALL_RATIO)
+  const generalBudget = Math.max(0, CRAWL_CONFIG.TOTAL_BUDGET - techBudget - footballBudget)
+
+  console.log(`[BUDGET] Cycle target: ${CRAWL_CONFIG.TOTAL_BUDGET} artikel | Tech: ${techBudget} (~${CRAWL_CONFIG.TECH_RATIO * 100}%) | Football: ${footballBudget} (~${CRAWL_CONFIG.FOOTBALL_RATIO * 100}%) | General: ${generalBudget}`)
 
   try {
-    // ── 30% TECH SOURCES ──────────────────────────────────────────
+    // ── 5% TECH SOURCES ──────────────────────────────────────────
     let techGenerated = 0
-    // Acak urutan tech sources agar tidak selalu sumber yang sama yang dapat jatah
     const shuffledTech = [...TECH_FEEDS].sort(() => Math.random() - 0.5)
 
     for (const source of shuffledTech) {
@@ -643,10 +674,24 @@ async function runCrawl() {
     }
     console.log(`[BUDGET] Tech selesai: ${techGenerated}/${techBudget} artikel`)
 
-    // ── 70% GENERAL SOURCES ───────────────────────────────────────
+    // ── 5% FOOTBALL SOURCES ───────────────────────────────────────
+    let footballGenerated = 0
+    const shuffledFootball = [...FOOTBALL_FEEDS].sort(() => Math.random() - 0.5)
+
+    for (const source of shuffledFootball) {
+      if (footballGenerated >= footballBudget) break
+      const remaining = footballBudget - footballGenerated
+      const count = await processSource(source, {
+        maxArticles: Math.min(remaining, CRAWL_CONFIG.MAX_PER_SOURCE),
+        forcedCategories: ['football', 'sports']
+      })
+      footballGenerated += count
+    }
+    console.log(`[BUDGET] Football selesai: ${footballGenerated}/${footballBudget} artikel`)
+
+    // ── 90% GENERAL SOURCES ───────────────────────────────────────
     let generalGenerated = 0
     const generalSources = await getSources()
-    // Acak urutan general sources juga
     const shuffledGeneral = [...generalSources].sort(() => Math.random() - 0.5)
 
     for (const source of shuffledGeneral) {
@@ -659,7 +704,7 @@ async function runCrawl() {
     }
     console.log(`[BUDGET] General selesai: ${generalGenerated}/${generalBudget} artikel`)
 
-    console.log(`[BUDGET] Total siklus ini: ${techGenerated + generalGenerated} artikel (tech: ${techGenerated}, general: ${generalGenerated})`)
+    console.log(`[BUDGET] Total siklus ini: ${techGenerated + footballGenerated + generalGenerated} artikel (tech: ${techGenerated}, football: ${footballGenerated}, general: ${generalGenerated})`)
     console.log("Crawl job completed.")
   } catch (err) {
     console.error("Crawl error:", err.message)
