@@ -133,6 +133,12 @@ function renderMarkdownContent(content: string) {
     const line = lines[i]
     const trimmedLine = line.trim()
 
+    // Skip --- dividers
+    if (trimmedLine === "---" || trimmedLine === "***" || trimmedLine === "___") {
+      i++
+      continue
+    }
+
     if (!trimmedLine) {
       i++
       continue
@@ -428,20 +434,6 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
           {/* Header Info */}
           <div className="mb-8">
-            {/* Categories */}
-            {article.categories && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {article.categories.split(", ").map((cat, i) => (
-                  <span
-                    key={i}
-                    className="px-3 py-1 bg-cyan-500/20 text-cyan-300 text-xs font-semibold rounded-full border border-cyan-500/30"
-                  >
-                    {cat}
-                  </span>
-                ))}
-              </div>
-            )}
-
             {/* Title */}
             <h1 className="text-4xl md:text-5xl font-black text-white mb-4 leading-tight">
               {article.title}
@@ -465,27 +457,60 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             )}
           </div>
 
-          {/* Divider */}
-          <div className="my-10 h-px bg-gradient-to-r from-cyan-500/0 via-cyan-500/30 to-cyan-500/0"></div>
-
           {/* Body Content */}
-          <div className="prose prose-invert max-w-none mb-12">
+          <div className="prose prose-invert max-w-none mb-8">
             {renderMarkdownContent(article.content)}
           </div>
 
+          {/* Read Also Section - Inline with Content */}
+          {recommendedArticles.length > 0 && (
+            <div className="mb-8 p-4 border-l-4 border-cyan-500/60 bg-cyan-500/5 rounded-r">
+              <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">Read also:</h3>
+              <div className="space-y-2">
+                {recommendedArticles.slice(0, 2).map((relatedArticle) => (
+                  <Link
+                    key={relatedArticle.id}
+                    href={`/articles/${generateSlug(relatedArticle.title)}`}
+                    className="block text-sm text-cyan-400 hover:text-cyan-300 transition-colors hover:underline"
+                  >
+                    {relatedArticle.title}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Categories - Below Content */}
+          {article.categories && (
+            <div className="my-8 pt-8 border-t border-cyan-500/20">
+              <div className="flex flex-wrap gap-2">
+                {article.categories.split(", ").map((cat, i) => (
+                  <span
+                    key={i}
+                    className="px-3 py-1 bg-cyan-500/20 text-cyan-300 text-xs font-semibold rounded-full border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+                  >
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
         </article>
 
-        {/* Recommended Articles Section */}
+        {/* Recommended Reading Section - Grid Below */}
         {recommendedArticles.length > 0 && (
           <div className="mt-20 pt-12 border-t border-cyan-500/20">
-            <h2 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
-              <svg className="w-8 h-8 text-cyan-400" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M7 7a3 3 0 11-6 0 3 3 0 016 0zM7 15a3 3 0 11-6 0 3 3 0 016 0zM16 15a3 3 0 11-6 0 3 3 0 016 0zM16 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Recommended Reading
-            </h2>
+            <div>
+              <h2 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+                <svg className="w-8 h-8 text-cyan-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M7 7a3 3 0 11-6 0 3 3 0 016 0zM7 15a3 3 0 11-6 0 3 3 0 016 0zM16 15a3 3 0 11-6 0 3 3 0 016 0zM16 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Recommended Reading
+              </h2>
+              <div className="w-80 h-1 bg-gradient-to-r from-cyan-500 to-transparent rounded-full mb-8"></div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {recommendedArticles.map((recArticle) => (
                 <Link
                   key={recArticle.id}
@@ -540,6 +565,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                   )}
                 </Link>
               ))}
+              </div>
             </div>
           </div>
         )}

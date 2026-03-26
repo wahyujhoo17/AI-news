@@ -8,9 +8,58 @@ const path = require('path')
 const { pool } = require('./lib/db')
 
 console.log("[STARTUP] Environment variables loaded:")
-console.log("[STARTUP] GROQ_API_KEY:", process.env.GROQ_API_KEY ? "✓" : "✗")
 console.log("[STARTUP] UNSPLASH_API_KEY:", process.env.UNSPLASH_API_KEY ? "✓" : "✗")
 console.log("[STARTUP] GROQ_MODEL:", process.env.GROQ_MODEL)
+
+// ============================================
+// MULTI-KEY GROQ API MANAGER
+// ============================================
+class GroqKeyManager {
+  constructor() {
+    const keysEnv = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY
+    if (!keysEnv) throw new Error('GROQ_API_KEYS or GROQ_API_KEY not configured')
+    
+    this.keys = keysEnv.split(',').map(k => k.trim()).filter(k => k.length > 0)
+    this.currentIndex = 0
+    this.keyStats = {}
+    
+    this.keys.forEach(key => {
+      this.keyStats[key] = { attempts: 0, failures: 0, success: 0 }
+    })
+    
+    console.log(`[GROQ] Initialized with ${this.keys.length} API key(s)`)
+    this.keys.forEach((key, idx) => {
+      console.log(`  [${idx + 1}] ${key.slice(0, 10)}...${key.slice(-10)}`)
+    })
+  }
+  
+  getNextKey() {
+    this.currentIndex = (this.currentIndex + 1) % this.keys.length
+    const key = this.keys[this.currentIndex]
+    this.keyStats[key].attempts++
+    return key
+  }
+  
+  recordSuccess(key) {
+    if (this.keyStats[key]) {
+      this.keyStats[key].success++
+    }
+  }
+  
+  recordFailure(key) {
+    if (this.keyStats[key]) {
+      this.keyStats[key].failures++
+    }
+  }
+}
+
+let groqManager
+try {
+  groqManager = new GroqKeyManager()
+} catch (err) {
+  console.error('[GROQ] Failed to initialize:', err.message)
+  process.exit(1)
+}
 
 const BUILTIN_FEEDS = [
   { name: 'Google News', type: 'rss', url: 'https://news.google.com/rss' },
@@ -156,9 +205,8 @@ async function fetchHTML(url, selector = 'article') {
 
 async function generateArticle(title, sourceContent, sourceUrl) {
   // Groq-only (no fallback)
-  const groqKey = process.env.GROQ_API_KEY
+  const groqKey = groqManager.getNextKey()
   const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
-  if (!groqKey) throw new Error('GROQ_API_KEY not configured')
 
   const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.
 
@@ -174,15 +222,13 @@ OUTPUT FORMAT (follow exactly):
 2. Blank line
 3. Article body in MARKDOWN (minimum 800 words)
   - Keep journalistic narrative flow; structure must adapt to this specific story
-  - Use 2-4 contextual subheadings (##) to improve readability for long-form news
-  - Subheadings must be specific to the story, not generic labels
+  - Headings are OPTIONAL (use only when truly needed, max 2)
   - NEVER use generic templated headings: "Introduction", "Background", "Overview", "Conclusion", "Summary"
-  - Do not follow a rigid mechanical pattern like heading → very short paragraph → heading repeatedly
+  - Do not follow a rigid pattern like heading → short paragraph → heading repeatedly
   - Tables are OPTIONAL: include only when there is structured data (dates, figures, comparisons)
   - Mermaid flowchart/diagram blocks are OPTIONAL: include only if chronology/process is central and clearer as a diagram
   - If context is purely narrative, do NOT force tables or flowcharts
-  - Use **bold** to highlight key names, institutions, figures, and critical terms (roughly 4-8 highlights across article)
-  - Use blockquote (>) only when quoting important statement/speech and if such statement exists
+  - Use **bold** only when it adds clarity, not in every paragraph
   - Include context, analysis, implications, and concrete details relevant to this specific story
 
 Do NOT include any preamble, explanation, or commentary. Start directly with the headline on line 1.
@@ -195,10 +241,10 @@ Begin:`
       {
         model: groqModel,
         messages: [
-          { role: 'system', content: 'You are a professional news journalist. Always start directly with the headline. Output valid, rich Markdown only. Use natural context-driven narrative flow with 2-4 contextual ## subheadings for readability, but avoid generic headings like Introduction/Conclusion. Include selective bold highlights for key entities/facts and use blockquote only when quoting meaningful statements. Tables and mermaid flowcharts remain optional and must not be forced. Do not include any preamble, explanation, meta-commentary, or instructions.' },
+          { role: 'system', content: 'You are a professional news journalist. Always start directly with the headline. Output valid Markdown only. Avoid templated section structures and generic headings like Introduction/Conclusion. Use natural, context-driven narrative flow. Tables and mermaid flowcharts are optional and must not be forced; use them only when they genuinely improve clarity for structured/process-heavy stories. Do not include any preamble, explanation, meta-commentary, or instructions.' },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 2500,
+        max_tokens: 3000,
         temperature: 0.8
       },
       {
@@ -418,9 +464,8 @@ function detectCategory(title, content) {
 
 async function classifyArticleWithAI(title, excerpt) {
   try {
-    const groqKey = process.env.GROQ_API_KEY
+    const groqKey = groqManager.getNextKey()
     const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
-    if (!groqKey) throw new Error('GROQ_API_KEY not configured')
 
     // More strict prompt that forces output format
     const prompt = `Categorize this article. Respond with ONLY 1-3 category names, separated by commas. Each name must be lowercase, single word or hyphenated. No other text.
