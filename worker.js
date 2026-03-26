@@ -174,13 +174,15 @@ OUTPUT FORMAT (follow exactly):
 2. Blank line
 3. Article body in MARKDOWN (minimum 800 words)
   - Keep journalistic narrative flow; structure must adapt to this specific story
-  - Headings are OPTIONAL (use only when truly needed, max 2)
+  - Use 2-4 contextual subheadings (##) to improve readability for long-form news
+  - Subheadings must be specific to the story, not generic labels
   - NEVER use generic templated headings: "Introduction", "Background", "Overview", "Conclusion", "Summary"
-  - Do not follow a rigid pattern like heading → short paragraph → heading repeatedly
+  - Do not follow a rigid mechanical pattern like heading → very short paragraph → heading repeatedly
   - Tables are OPTIONAL: include only when there is structured data (dates, figures, comparisons)
   - Mermaid flowchart/diagram blocks are OPTIONAL: include only if chronology/process is central and clearer as a diagram
   - If context is purely narrative, do NOT force tables or flowcharts
-  - Use **bold** only when it adds clarity, not in every paragraph
+  - Use **bold** to highlight key names, institutions, figures, and critical terms (roughly 4-8 highlights across article)
+  - Use blockquote (>) only when quoting important statement/speech and if such statement exists
   - Include context, analysis, implications, and concrete details relevant to this specific story
 
 Do NOT include any preamble, explanation, or commentary. Start directly with the headline on line 1.
@@ -193,10 +195,10 @@ Begin:`
       {
         model: groqModel,
         messages: [
-          { role: 'system', content: 'You are a professional news journalist. Always start directly with the headline. Output valid Markdown only. Avoid templated section structures and generic headings like Introduction/Conclusion. Use natural, context-driven narrative flow. Tables and mermaid flowcharts are optional and must not be forced; use them only when they genuinely improve clarity for structured/process-heavy stories. Do not include any preamble, explanation, meta-commentary, or instructions.' },
+          { role: 'system', content: 'You are a professional news journalist. Always start directly with the headline. Output valid, rich Markdown only. Use natural context-driven narrative flow with 2-4 contextual ## subheadings for readability, but avoid generic headings like Introduction/Conclusion. Include selective bold highlights for key entities/facts and use blockquote only when quoting meaningful statements. Tables and mermaid flowcharts remain optional and must not be forced. Do not include any preamble, explanation, meta-commentary, or instructions.' },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 3000,
+        max_tokens: 2500,
         temperature: 0.8
       },
       {
