@@ -31,7 +31,7 @@ export default function Footer() {
               </div>
             </div>
             <p className="text-sm text-gray-400 leading-relaxed">
-              Platform berita AI-powered untuk era digital. Dapatkan informasi terkini dengan teknologi kecerdasan buatan.
+              AI-powered news platform for the digital era. Get the latest information with artificial intelligence technology.
             </p>
           </div>
 

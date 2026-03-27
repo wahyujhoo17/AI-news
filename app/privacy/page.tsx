@@ -29,7 +29,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-bold text-cyan-400 mb-4">1. Introduction</h2>
             <p className="text-gray-300 leading-relaxed">
-              Qbitz ("we", "our", or "us") operates the ai-news.lumicloud.my.id website and platform. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
+              Qbitz ("we", "our", or "us") operates the qbitznews.com website and platform. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
             </p>
           </section>
 

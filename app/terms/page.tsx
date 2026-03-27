@@ -29,7 +29,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-bold text-cyan-400 mb-4">1. Agreement to Terms</h2>
             <p className="text-gray-300 leading-relaxed">
-              By accessing and using the Qbitz website and services located at ai-news.lumicloud.my.id, you accept and agree to be bound by and abide by the terms and conditions of this agreement. If you do not agree to abide by the above, please do not use this service.
+              By accessing and using the Qbitz website and services located at qbitznews.com, you accept and agree to be bound by and abide by the terms and conditions of this agreement. If you do not agree to abide by the above, please do not use this service.
             </p>
           </section>
 
