@@ -515,6 +515,30 @@ async function fetchImageFromUnsplash(context) {
   }
 }
 
+async function ensureUniqueFeaturedImage(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== 'string') return null
+
+  const normalizedImageUrl = imageUrl.trim()
+  if (!normalizedImageUrl) return null
+
+  try {
+    const existingImage = await pool.query(
+      "SELECT id FROM articles WHERE LOWER(TRIM(featured_image)) = LOWER(TRIM($1)) LIMIT 1",
+      [normalizedImageUrl]
+    )
+
+    if (existingImage.rows.length > 0) {
+      console.log(`[IMAGE] Duplicate featured image detected, clearing image: ${normalizedImageUrl.slice(0, 80)}`)
+      return null
+    }
+
+    return normalizedImageUrl
+  } catch (error) {
+    console.error('[IMAGE] Failed to validate featured image uniqueness:', error.message)
+    return null
+  }
+}
+
 async function fetchRSS(url) {
   try {
     const parser = new Parser()
@@ -1048,6 +1072,8 @@ async function processSource(source, options = {}) {
           sourceName: source.name,
         })
 
+      const uniqueFeaturedImage = await ensureUniqueFeaturedImage(featuredImage)
+
       const saved = await pool.query(
         `INSERT INTO articles 
          (title, content, source_url, source_name, published_at, is_published, ai_model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, excerpt, author, featured_image)
@@ -1066,7 +1092,7 @@ async function processSource(source, options = {}) {
           generated.cost,
           generated.excerpt,
           generated.author,
-          featuredImage
+          uniqueFeaturedImage
         ]
       )
 

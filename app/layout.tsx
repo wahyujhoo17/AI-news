@@ -4,6 +4,9 @@ export const metadata = {
   title: "Qbitz - AI-Powered News Platform",
   description: "Revolutionary news platform powered by AI. Real-time analysis, automatic categorization, and original content from global sources.",
   keywords: ["news", "ai", "artificial intelligence", "qbitz", "technology"],
+  verification: {
+    google: "dNCIakI3iJz8B_1851j9qYbc4oxyIn_b9Jl5Fx27nIU",
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
