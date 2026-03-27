@@ -25,11 +25,10 @@ async function getArticleBySlug(slug: string): Promise<Article | null> {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "")
 
-    // Use the dedicated slug endpoint which does proper DB-level slug matching
-    const res = await fetch(
-      `http://localhost:3001/api/articles/${encodeURIComponent(normalizedSlug)}`,
-      { cache: "no-store" }
-    )
+    // FIX: Fetch from single endpoint with slug (returns full content)
+    const res = await fetch(`http://localhost:3001/api/articles/${normalizedSlug}`, {
+      cache: "no-store",
+    })
 
     if (!res.ok) return null
 
