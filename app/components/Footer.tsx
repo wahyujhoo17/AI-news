@@ -27,7 +27,7 @@ export default function Footer() {
               </div>
               <div>
                 <h3 className="font-black text-cyan-400">Qbitz</h3>
-                <p className="text-[10px] text-cyan-300/60 tracking-widest">AI NEWS</p>
+                <p className="text-[10px] text-cyan-300/60 tracking-widest">NEWS</p>
               </div>
             </div>
             <p className="text-sm text-gray-400 leading-relaxed">

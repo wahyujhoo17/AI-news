@@ -89,7 +89,7 @@ export default function Navbar() {
               <h1 className="text-base sm:text-lg font-black bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-cyan-300">
                 Qbitz
               </h1>
-              <p className="text-cyan-300/60 text-[8px] sm:text-[9px] tracking-widest font-semibold">AI NEWS</p>
+              <p className="text-cyan-300/60 text-[8px] sm:text-[9px] tracking-widest font-semibold">NEWS</p>
             </div>
           </Link>
 
