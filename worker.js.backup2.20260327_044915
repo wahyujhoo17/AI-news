@@ -97,12 +97,12 @@ const BUILTIN_FEEDS = [
   { name: 'CNN World', type: 'rss', url: 'http://rss.cnn.com/rss/edition_world.rss' },
   { name: 'BBC World', type: 'rss', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
   { name: 'Reuters Top News', type: 'rss', url: 'https://www.reutersagency.com/feed/?post_type=best&post_type_best_topics=top-news&output=rss' },
-  { name: 'France 24', type: 'rss', url: 'https://www.france24.com/en/rss' },
-  { name: 'CBS News', type: 'rss', url: 'https://www.cbsnews.com/latest/rss/main' },
+  { name: 'Al Jazeera English', type: 'rss', url: 'https://www.aljazeera.com/xml/feeds/rss.xml' },
+  { name: 'Associated Press', type: 'rss', url: 'https://apnews.com/rss/ap-top-news' },
   { name: 'NPR News', type: 'rss', url: 'https://feeds.npr.org/1001/rss.xml' },
   { name: 'The Guardian International', type: 'rss', url: 'https://www.theguardian.com/world/rss' },
-  { name: 'Sky News', type: 'rss', url: 'https://news.sky.com/tools/rss' },
-  { name: 'Independent', type: 'rss', url: 'https://www.independent.co.uk/rss' }
+  { name: 'ABC News', type: 'rss', url: 'https://abcnews.go.com/abcnews/topstoriesheadlines/rss' },
+  { name: 'NBC News', type: 'rss', url: 'https://www.nbcnews.com/news/rss' }
 ]
 
 // Tech-specific feeds
@@ -123,7 +123,7 @@ const FOOTBALL_FEEDS = [
   { id: 912, name: 'Sky Sports Football', type: 'rss', url: 'https://www.skysports.com/rss/12040', isFootball: true },
   { id: 913, name: 'ESPN FC', type: 'rss', url: 'https://www.espn.com/espn/rss/soccer/news', isFootball: true },
   { id: 914, name: 'BBC Premier League', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml', isFootball: true },
-  { id: 915, name: '90min Football', type: 'rss', url: 'https://www.90min.com/posts.rss', isFootball: true },
+  { id: 915, name: 'Goal.com', type: 'rss', url: 'https://www.goal.com/en/feed', isFootball: true },
   { id: 916, name: 'Football London', type: 'rss', url: 'https://www.football.london/?widget_name=football_london_rss_feed', isFootball: true },
 ]
 

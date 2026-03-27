@@ -93,16 +93,13 @@ try {
 }
 
 const BUILTIN_FEEDS = [
-  { name: 'Google News Top Stories', type: 'rss', url: 'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en' },
-  { name: 'CNN World', type: 'rss', url: 'http://rss.cnn.com/rss/edition_world.rss' },
-  { name: 'BBC World', type: 'rss', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
-  { name: 'Reuters Top News', type: 'rss', url: 'https://www.reutersagency.com/feed/?post_type=best&post_type_best_topics=top-news&output=rss' },
-  { name: 'France 24', type: 'rss', url: 'https://www.france24.com/en/rss' },
-  { name: 'CBS News', type: 'rss', url: 'https://www.cbsnews.com/latest/rss/main' },
-  { name: 'NPR News', type: 'rss', url: 'https://feeds.npr.org/1001/rss.xml' },
-  { name: 'The Guardian International', type: 'rss', url: 'https://www.theguardian.com/world/rss' },
-  { name: 'Sky News', type: 'rss', url: 'https://news.sky.com/tools/rss' },
-  { name: 'Independent', type: 'rss', url: 'https://www.independent.co.uk/rss' }
+  { name: 'Google News', type: 'rss', url: 'https://news.google.com/rss' },
+  { name: 'BBC World', type: 'rss', url: 'https://feeds.bbc.co.uk/news/world/rss.xml' },
+  { name: 'Reuters', type: 'rss', url: 'https://www.reutersagency.com/feed/?taxonomy=best-topics&output=rss' },
+  { name: 'Al Jazeera', type: 'rss', url: 'https://www.aljazeera.com/xml/feeds/rss/all.xml' },
+  { name: 'AP News', type: 'rss', url: 'https://apnews.com/hub/ap-top-news/rss' },
+  { name: 'NPR', type: 'rss', url: 'https://feeds.npr.org/1001/rss.xml' },
+  { name: 'The Guardian', type: 'rss', url: 'https://www.theguardian.com/world/rss' }
 ]
 
 // Tech-specific feeds
@@ -111,20 +108,15 @@ const TECH_FEEDS = [
   { id: 902, name: 'The Verge', type: 'rss', url: 'https://www.theverge.com/rss/index.xml', isTech: true },
   { id: 903, name: 'Ars Technica', type: 'rss', url: 'https://feeds.arstechnica.com/arstechnica/index', isTech: true },
   { id: 904, name: 'Wired', type: 'rss', url: 'https://www.wired.com/feed/rss', isTech: true },
-  { id: 905, name: 'MIT Technology Review', type: 'rss', url: 'https://www.technologyreview.com/feed/', isTech: true },
-  { id: 906, name: 'CNET', type: 'rss', url: 'https://www.cnet.com/rss/news/', isTech: true },
-  { id: 907, name: 'Engadget', type: 'rss', url: 'https://www.engadget.com/rss.xml', isTech: true },
-  { id: 908, name: 'ZDNet', type: 'rss', url: 'https://www.zdnet.com/topic/rss.xml', isTech: true },
+  { id: 905, name: 'MIT Tech Review', type: 'rss', url: 'https://www.technologyreview.com/feed/', isTech: true },
 ]
 
 // Football-specific feeds
 const FOOTBALL_FEEDS = [
   { id: 911, name: 'BBC Football', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', isFootball: true },
   { id: 912, name: 'Sky Sports Football', type: 'rss', url: 'https://www.skysports.com/rss/12040', isFootball: true },
-  { id: 913, name: 'ESPN FC', type: 'rss', url: 'https://www.espn.com/espn/rss/soccer/news', isFootball: true },
+  { id: 913, name: 'ESPN Soccer', type: 'rss', url: 'https://www.espn.com/espn/rss/soccer/news', isFootball: true },
   { id: 914, name: 'BBC Premier League', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml', isFootball: true },
-  { id: 915, name: '90min Football', type: 'rss', url: 'https://www.90min.com/posts.rss', isFootball: true },
-  { id: 916, name: 'Football London', type: 'rss', url: 'https://www.football.london/?widget_name=football_london_rss_feed', isFootball: true },
 ]
 
 // Konfigurasi rasio artikel per siklus crawl

@@ -10,22 +10,33 @@ export const metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
     apple: '/apple-touch-icon.png',
+    other: [
+      { rel: 'android-chrome-192x192', url: '/android-chrome-192x192.png' },
+      { rel: 'android-chrome-512x512', url: '/android-chrome-512x512.png' },
+    ],
   },
   openGraph: {
-    title: "Qbitz - AI-Powered News",
-    description: "News powered by artificial intelligence",
+    title: "Qbitz - AI-Powered News Platform",
+    description: "Revolutionary news platform powered by AI. Real-time analysis, automatic categorization, and original content from global sources.",
     type: "website",
     locale: "en_US",
     siteName: "Qbitz",
+    images: [
+      {
+        url: '/img/Qbitz.png',
+        width: 512,
+        height: 512,
+        alt: "Qbitz Logo",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Qbitz",
-    description: "AI-powered news platform for the digital era",
+    title: "Qbitz - AI-Powered News Platform",
+    description: "Revolutionary news platform powered by AI",
+    image: '/img/Qbitz.png',
   },
 }
 
