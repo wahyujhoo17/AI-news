@@ -101,6 +101,48 @@ async function getRecommendedArticles(currentArticle: Article, limit: number = 3
   }
 }
 
+const KNOWN_IMAGE_SOURCES: Record<string, { label: string; href: string }> = {
+  "images.unsplash.com": { label: "Unsplash", href: "https://unsplash.com" },
+  "unsplash.com": { label: "Unsplash", href: "https://unsplash.com" },
+  "i.guim.co.uk": { label: "The Guardian", href: "https://www.theguardian.com" },
+  "media.guim.co.uk": { label: "The Guardian", href: "https://www.theguardian.com" },
+  "static01.nyt.com": { label: "The New York Times", href: "https://www.nytimes.com" },
+  "images.wsj.net": { label: "The Wall Street Journal", href: "https://www.wsj.com" },
+  "cdn.vox-cdn.com": { label: "The Verge", href: "https://www.theverge.com" },
+  "techcrunch.com": { label: "TechCrunch", href: "https://techcrunch.com" },
+  "images.cnbc.com": { label: "CNBC", href: "https://www.cnbc.com" },
+  "media.cnn.com": { label: "CNN", href: "https://www.cnn.com" },
+  "s.yimg.com": { label: "Yahoo", href: "https://www.yahoo.com" },
+  "ichef.bbci.co.uk": { label: "BBC", href: "https://www.bbc.com" },
+  "cdn.mos.cms.futurecdn.net": { label: "Future PLC", href: "https://www.futureplc.com" },
+  "images.axios.com": { label: "Axios", href: "https://www.axios.com" },
+  "static.reuters.com": { label: "Reuters", href: "https://www.reuters.com" },
+  "dims.apnews.com": { label: "AP News", href: "https://apnews.com" },
+  "assets.bwbx.io": { label: "Bloomberg", href: "https://www.bloomberg.com" },
+  "images.fastcompany.net": { label: "Fast Company", href: "https://www.fastcompany.com" },
+  "cdn.arstechnica.net": { label: "Ars Technica", href: "https://arstechnica.com" },
+  "i.kinja-img.com": { label: "Gizmodo Media", href: "https://gizmodo.com" },
+}
+
+function getImageSource(url: string): { label: string; href: string } | null {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    if (KNOWN_IMAGE_SOURCES[hostname]) {
+      return KNOWN_IMAGE_SOURCES[hostname]
+    }
+    // Partial match for subdomains
+    for (const [key, value] of Object.entries(KNOWN_IMAGE_SOURCES)) {
+      if (hostname.endsWith(key) || hostname.includes(key)) {
+        return value
+      }
+    }
+    const domain = hostname.replace(/^www\./, "")
+    return { label: domain, href: `https://${domain}` }
+  } catch {
+    return null
+  }
+}
+
 function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page"): string {
   const titleLength = title.trim().length
 
@@ -475,7 +517,12 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     permanentRedirect(buildArticlePath(article.id, article.title))
   }
 
-  const recommendedArticles = await getRecommendedArticles(article, 3)
+  const recommendedArticles = await getRecommendedArticles(article, 6)
+  const readAlsoArticles = recommendedArticles.slice(0, 2)
+  const readAlsoIds = new Set(readAlsoArticles.map((item) => item.id))
+  const recommendedReadingArticles = recommendedArticles.filter(
+    (item) => Boolean(item.featured_image) && !readAlsoIds.has(item.id)
+  )
   const published = new Date(article.published_at || article.created_at)
   const formattedDate = published.toLocaleDateString("en-US", {
     year: "numeric",
@@ -496,14 +543,31 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <article>
           {article.featured_image && (
-            <div className="relative h-80 w-full overflow-hidden rounded-2xl mb-10 border border-cyan-500/20 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950">
-              <img
-                src={article.featured_image}
-                alt={article.title}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-            </div>
+            <figure className="mb-10">
+              <div className="relative w-full overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950">
+                <img
+                  src={article.featured_image}
+                  alt={article.title}
+                  className="w-full h-auto object-contain"
+                />
+              </div>
+              {(() => {
+                const src = getImageSource(article.featured_image)
+                return src ? (
+                  <figcaption className="mt-1.5 text-right text-xs text-gray-500">
+                    Photo:{" "}
+                    <a
+                      href={src.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-cyan-400 transition-colors"
+                    >
+                      {src.label}
+                    </a>
+                  </figcaption>
+                ) : null
+              })()}
+            </figure>
           )}
 
           <div className="mb-8">
@@ -531,13 +595,13 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             {renderMarkdownContent(article.content)}
           </div>
 
-          {(recommendedArticles.length > 0 || article.categories) && (
+          {(readAlsoArticles.length > 0 || article.categories) && (
             <div className="mb-8 p-4 border-l-4 border-cyan-500/60 bg-cyan-500/5 rounded-r space-y-4">
-              {recommendedArticles.length > 0 && (
+              {readAlsoArticles.length > 0 && (
                 <div>
                   <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">Read also:</h3>
                   <div className="space-y-2">
-                    {recommendedArticles.slice(0, 2).map((relatedArticle) => (
+                    {readAlsoArticles.map((relatedArticle) => (
                       <Link
                         key={relatedArticle.id}
                         href={buildArticlePath(relatedArticle.id, relatedArticle.title)}
@@ -566,7 +630,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           )}
         </article>
 
-        {recommendedArticles.length > 0 && (
+        {recommendedReadingArticles.length > 0 && (
           <div className="mt-10 pt-12 border-t border-cyan-500/20">
             <div>
               <h2 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
@@ -578,7 +642,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
               <div className="w-80 h-1 bg-gradient-to-r from-cyan-500 to-transparent rounded-full mb-8"></div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {recommendedArticles.map((recArticle) => (
+                {recommendedReadingArticles.map((recArticle) => (
                   <Link
                     key={recArticle.id}
                     href={buildArticlePath(recArticle.id, recArticle.title)}
