@@ -82,7 +82,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 py-2 sm:py-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo + Brand - Left */}
-          <Link href="/" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity flex-shrink-0" style={{
+          <Link href="https://qbitznews.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity flex-shrink-0" style={{
             filter: "drop-shadow(0 0 20px rgba(255, 255, 255, 0.4)) drop-shadow(0 0 10px rgba(6, 182, 212, 0.3))"
           }}>
             <Image
