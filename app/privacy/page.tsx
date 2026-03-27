@@ -1,7 +1,25 @@
-"use client"
-
+import type { Metadata } from "next"
 import Navbar from "@/app/components/Navbar"
 import Footer from "@/app/components/Footer"
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "Read the Qbitz Privacy Policy to understand how data is collected, used, and protected on qbitznews.com.",
+  alternates: {
+    canonical: "/privacy",
+  },
+  openGraph: {
+    title: "Privacy Policy",
+    description: "Read the Qbitz Privacy Policy to understand how data is collected, used, and protected on qbitznews.com.",
+    url: "/privacy",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Privacy Policy",
+    description: "Read the Qbitz Privacy Policy to understand how data is collected, used, and protected on qbitznews.com.",
+  },
+}
 
 export default function PrivacyPage() {
   return (

@@ -1,7 +1,25 @@
-"use client"
-
+import type { Metadata } from "next"
 import Navbar from "@/app/components/Navbar"
 import Footer from "@/app/components/Footer"
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description: "Review the Qbitz Terms of Service for the rules, limitations, and conditions that apply to using the platform.",
+  alternates: {
+    canonical: "/terms",
+  },
+  openGraph: {
+    title: "Terms of Service",
+    description: "Review the Qbitz Terms of Service for the rules, limitations, and conditions that apply to using the platform.",
+    url: "/terms",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Terms of Service",
+    description: "Review the Qbitz Terms of Service for the rules, limitations, and conditions that apply to using the platform.",
+  },
+}
 
 export default function TermsPage() {
   return (

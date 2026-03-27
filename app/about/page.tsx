@@ -1,9 +1,27 @@
-"use client"
-
+import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
 import Navbar from "@/app/components/Navbar"
 import Footer from "@/app/components/Footer"
+
+export const metadata: Metadata = {
+  title: "About",
+  description: "Learn about Qbitz, our AI-powered news platform, and how we automate news aggregation, analysis, and publishing.",
+  alternates: {
+    canonical: "/about",
+  },
+  openGraph: {
+    title: "About",
+    description: "Learn about Qbitz, our AI-powered news platform, and how we automate news aggregation, analysis, and publishing.",
+    url: "/about",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About",
+    description: "Learn about Qbitz, our AI-powered news platform, and how we automate news aggregation, analysis, and publishing.",
+  },
+}
 
 export default function AboutPage() {
   return (

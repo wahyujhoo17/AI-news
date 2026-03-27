@@ -1,4 +1,5 @@
 import { Pool } from "pg"
+import { extractArticleRouteParts, normalizeArticleSlug } from "@/lib/article-slug"
 
 export const pool = new Pool({
   host: process.env.PGHOST || "localhost",
@@ -157,11 +158,18 @@ export async function getArticleById(id: number) {
 }
 
 export async function getArticleBySlug(slug: string) {
-  const normalizedSlug = slug
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
+  const { articleId, slug: normalizedSlug } = extractArticleRouteParts(slug)
+
+  if (articleId !== null) {
+    const articleById = await getArticleById(articleId)
+    if (articleById) {
+      return articleById
+    }
+  }
+
+  if (!normalizedSlug) {
+    return undefined
+  }
 
   const result = await pool.query<Article>(
     `SELECT * FROM articles WHERE is_published = true AND lower(regexp_replace(trim(title), '[^a-z0-9]+', '-', 'g')) = $1 LIMIT 1`,
@@ -177,11 +185,7 @@ export async function getArticleBySlug(slug: string) {
     `SELECT * FROM articles WHERE is_published = true`
   )
   return fallback.rows.find((article) => {
-    const articleSlug = (article.title || "")
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")
+    const articleSlug = normalizeArticleSlug(article.title || "")
     return articleSlug === normalizedSlug
   })
 }

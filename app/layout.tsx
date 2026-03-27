@@ -1,11 +1,32 @@
+import type { Metadata } from 'next'
 import './globals.css'
 
-export const metadata = {
-  title: "Qbitz - AI-Powered News Platform",
-  description: "Revolutionary news platform powered by AI. Real-time analysis, automatic categorization, and original content from global sources.",
-  keywords: ["news", "ai", "artificial intelligence", "qbitz", "technology"],
+const siteUrl = 'https://qbitznews.com'
+
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'Qbitz - AI-Powered News Platform',
+    template: '%s | Qbitz',
+  },
+  description: 'Revolutionary news platform powered by AI. Real-time analysis, automatic categorization, and original content from global sources.',
+  keywords: ['news', 'ai', 'artificial intelligence', 'qbitz', 'technology'],
+  alternates: {
+    canonical: '/',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
   verification: {
-    google: "dNCIakI3iJz8B_1851j9qYbc4oxyIn_b9Jl5Fx27nIU",
+    google: 'dNCIakI3iJz8B_1851j9qYbc4oxyIn_b9Jl5Fx27nIU',
   },
   icons: {
     icon: [
@@ -18,25 +39,26 @@ export const metadata = {
     ],
   },
   openGraph: {
-    title: "Qbitz - AI-Powered News Platform",
-    description: "Revolutionary news platform powered by AI. Real-time analysis, automatic categorization, and original content from global sources.",
-    type: "website",
-    locale: "en_US",
-    siteName: "Qbitz",
+    title: 'Qbitz - AI-Powered News Platform',
+    description: 'Revolutionary news platform powered by AI. Real-time analysis, automatic categorization, and original content from global sources.',
+    url: siteUrl,
+    type: 'website',
+    locale: 'en_US',
+    siteName: 'Qbitz',
     images: [
       {
         url: '/img/Qbitz.png',
         width: 512,
         height: 512,
-        alt: "Qbitz Logo",
+        alt: 'Qbitz Logo',
       },
     ],
   },
   twitter: {
-    card: "summary_large_image",
-    title: "Qbitz - AI-Powered News Platform",
-    description: "Revolutionary news platform powered by AI",
-    image: '/img/Qbitz.png',
+    card: 'summary_large_image',
+    title: 'Qbitz - AI-Powered News Platform',
+    description: 'Revolutionary news platform powered by AI',
+    images: ['/img/Qbitz.png'],
   },
 }
 

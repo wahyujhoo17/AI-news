@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect, useRef } from "react"
+import { buildArticlePath } from "@/lib/article-slug"
 
 interface SearchResult {
   id: number
@@ -11,14 +12,6 @@ interface SearchResult {
   featured_image?: string
   excerpt?: string
   created_at: string
-}
-
-function generateSlug(title: string): string {
-  return title
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
 }
 
 export default function Navbar() {
@@ -69,12 +62,11 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  const handleSearchResultClick = (articleTitle: string) => {
-    const slug = generateSlug(articleTitle)
+  const handleSearchResultClick = (result: SearchResult) => {
     setSearchQuery("")
     setShowDropdown(false)
     setIsMobileMenuOpen(false)
-    router.push(`/articles/${slug}`)
+    router.push(buildArticlePath(result.id, result.title))
   }
 
   return (
@@ -117,7 +109,7 @@ export default function Navbar() {
                   {searchResults.map((result) => (
                     <button
                       key={result.id}
-                      onClick={() => handleSearchResultClick(result.title)}
+                      onClick={() => handleSearchResultClick(result)}
                       className="w-full px-3 py-2 hover:bg-cyan-500/20 transition-all flex gap-2 items-start border-b border-cyan-500/10 last:border-b-0 text-left"
                     >
                       {result.featured_image && (
@@ -200,7 +192,7 @@ export default function Navbar() {
                   {searchResults.map((result) => (
                     <button
                       key={result.id}
-                      onClick={() => handleSearchResultClick(result.title)}
+                      onClick={() => handleSearchResultClick(result)}
                       className="w-full px-3 py-2 hover:bg-cyan-500/20 text-left border-b border-cyan-500/10 last:border-b-0"
                     >
                       <h4 className="text-xs font-semibold text-white line-clamp-1">{result.title}</h4>

@@ -1,14 +1,16 @@
 import { NextResponse, NextRequest } from "next/server"
 import { pool, getArticleById, getArticleBySlug } from "@/lib/db"
+import { extractArticleRouteParts } from "@/lib/article-slug"
 
 export async function GET(request: NextRequest) {
   try {
     const pathParts = request.nextUrl.pathname.split("/").filter(Boolean)
     const idParam = pathParts[pathParts.length - 1] || ""
+    const { articleId } = extractArticleRouteParts(idParam)
     let article
 
-    if (/^\d+$/.test(idParam)) {
-      const id = parseInt(idParam, 10)
+    if (articleId !== null) {
+      const id = parseInt(String(articleId), 10)
       article = await getArticleById(id)
     } else {
       article = await getArticleBySlug(idParam)
