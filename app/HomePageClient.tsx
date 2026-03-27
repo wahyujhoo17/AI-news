@@ -59,6 +59,15 @@ function HomeContent() {
   const [total, setTotal] = useState(0)
 
   useEffect(() => {
+    const nextCategory = searchParams.get("category") || ""
+    const rawPage = parseInt(searchParams.get("page") || "1")
+    const nextPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
+
+    setSelectedCategory((prev) => (prev === nextCategory ? prev : nextCategory))
+    setCurrentPage((prev) => (prev === nextPage ? prev : nextPage))
+  }, [searchParams])
+
+  useEffect(() => {
     setLoading(true)
     const queryParams = new URLSearchParams({
       page: currentPage.toString(),
