@@ -135,12 +135,22 @@ function HomeContent() {
   const articlesWithImage = filteredArticles.filter((a) => a.featured_image)
   const articlesWithoutImage = filteredArticles.filter((a) => !a.featured_image)
   const featured = articlesWithImage.slice(0, 1)
-  const mainArticles = articlesWithImage.slice(1, 7)
-  const sidebarFromNoImage = articlesWithoutImage.slice(0, 6)
-  const sidebarArticles =
-    sidebarFromNoImage.length > 0
-      ? sidebarFromNoImage
-      : articlesWithImage.slice(7, 11)
+
+  const featuredIds = new Set(featured.map((article) => article.id))
+  const remainingWithImage = articlesWithImage.filter((article) => !featuredIds.has(article.id))
+  const remainingWithoutImage = articlesWithoutImage.filter((article) => !featuredIds.has(article.id))
+
+  const mainFromImage = remainingWithImage.slice(0, 6)
+  const mainIds = new Set(mainFromImage.map((article) => article.id))
+  const mainFallback = remainingWithoutImage
+    .filter((article) => !mainIds.has(article.id))
+    .slice(0, Math.max(0, 6 - mainFromImage.length))
+  const mainArticles = [...mainFromImage, ...mainFallback]
+
+  const usedInCards = new Set(mainArticles.map((article) => article.id))
+  const sidebarPoolNoImage = remainingWithoutImage.filter((article) => !usedInCards.has(article.id))
+  const sidebarPoolWithImage = remainingWithImage.filter((article) => !usedInCards.has(article.id))
+  const sidebarArticles = [...sidebarPoolNoImage, ...sidebarPoolWithImage].slice(0, 4)
 
   const handleCategoryChange = (slug: string) => {
     setSelectedCategory(slug)
