@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, Suspense } from "react"
+import { useEffect, useState, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Navbar from "./components/Navbar"
@@ -53,10 +53,13 @@ function HomeContent() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [selectedCategory, setSelectedCategory] = useState(categoryParam)
   const [currentPage, setCurrentPage] = useState(pageParam)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const isSearchMode = debouncedSearch.trim().length > 0
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const nextCategory = searchParams.get("category") || ""
@@ -67,14 +70,26 @@ function HomeContent() {
     setCurrentPage((prev) => (prev === nextPage ? prev : nextPage))
   }, [searchParams])
 
+  // Debounce search input: wait 350ms before firing API request
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+      setCurrentPage(1)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [search])
+
   useEffect(() => {
     setLoading(true)
     const queryParams = new URLSearchParams({
       page: currentPage.toString(),
       limit: "12",
     })
-    if (selectedCategory) {
+    if (selectedCategory && !isSearchMode) {
       queryParams.append("category", selectedCategory)
+    }
+    if (debouncedSearch.trim()) {
+      queryParams.append("search", debouncedSearch.trim())
     }
 
     fetch(`/api/articles?${queryParams}`)
@@ -117,24 +132,11 @@ function HomeContent() {
         console.error("Failed to fetch:", err)
         setLoading(false)
       })
-  }, [currentPage, selectedCategory])
+  }, [currentPage, selectedCategory, debouncedSearch])
 
-  const filteredArticles = useMemo(() => {
-    let result = articles
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter(
-        (a) =>
-          a.title.toLowerCase().includes(q) ||
-          a.content.toLowerCase().includes(q)
-      )
-    }
-    return result
-  }, [articles, search])
-
-  const articlesWithImage = filteredArticles.filter((a) => a.featured_image)
-  const articlesWithoutImage = filteredArticles.filter((a) => !a.featured_image)
-  const featured = articlesWithImage.slice(0, 1)
+  const articlesWithImage = articles.filter((a) => a.featured_image)
+  const articlesWithoutImage = articles.filter((a) => !a.featured_image)
+  const featured = isSearchMode ? [] : articlesWithImage.slice(0, 1)
 
   const featuredIds = new Set(featured.map((article) => article.id))
   const remainingWithImage = articlesWithImage.filter((article) => !featuredIds.has(article.id))
@@ -155,20 +157,26 @@ function HomeContent() {
   const handleCategoryChange = (slug: string) => {
     setSelectedCategory(slug)
     setCurrentPage(1)
+    setSearch("")
+    setDebouncedSearch("")
     router.push(slug ? `/?category=${slug}` : "/")
   }
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
     window.scrollTo({ top: 0, behavior: "smooth" })
-    router.push(`/?page=${page}${selectedCategory ? `&category=${selectedCategory}` : ""}`)
+    if (!isSearchMode) {
+      router.push(`/?page=${page}${selectedCategory ? `&category=${selectedCategory}` : ""}`)
+    }
   }
 
   return (
     <>
       <div className="relative z-40 backdrop-blur-sm bg-black/30 border-b border-cyan-500/20">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 overflow-x-auto">
-          <div className="flex gap-2 whitespace-nowrap">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+          {/* Desktop: categories left, search right */}
+          <div className="flex items-center gap-4">
+          <div className="flex gap-2 overflow-x-auto whitespace-nowrap flex-1">
             <button
               onClick={() => handleCategoryChange("")}
               className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
@@ -201,14 +209,97 @@ function HomeContent() {
               </button>
             ))}
           </div>
+            {/* Search — right side, desktop only */}
+            <div className="relative hidden lg:block flex-shrink-0 w-56">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search articles..."
+                className="w-full px-4 py-2 rounded-lg bg-gray-800/50 border border-cyan-500/30 text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-all text-sm"
+              />
+              {search && (
+                <button
+                  onClick={() => { setSearch(""); setDebouncedSearch("") }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         {loading ? (
           <ArticleSkeleton />
-        ) : filteredArticles.length === 0 ? (
-          <EmptyState />
+        ) : articles.length === 0 ? (
+          <EmptyState search={debouncedSearch} />
+        ) : isSearchMode ? (
+          /* ── SEARCH RESULTS MODE ── */
+          <>
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-white">
+                Search results for <span className="text-cyan-400">"{debouncedSearch}"</span>
+              </h2>
+              <p className="text-sm text-gray-400 mt-1">{total} article{total !== 1 ? "s" : ""} found</p>
+            </div>
+            <div className="space-y-4 mb-10">
+              {articles.map((article) => (
+                <Link
+                  key={article.id}
+                  href={buildArticlePath(article.id, article.title)}
+                  className="group flex gap-4 rounded-xl border border-cyan-500/20 bg-black/40 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-300 p-4"
+                >
+                  {article.featured_image && (
+                    <img
+                      src={article.featured_image}
+                      alt={article.title}
+                      className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors line-clamp-2 mb-1">
+                      {article.title}
+                    </h3>
+                    <p className="text-gray-400 text-sm line-clamp-2">
+                      {article.excerpt || article.content.slice(0, 120) + "..."}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                      <span>{new Date(article.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                      {article.categories && (
+                        <>
+                          <span>•</span>
+                          <span className="text-cyan-400">{article.categories.split(",")[0].trim()}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 rounded-lg border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  ← Previous
+                </button>
+                <span className="text-sm text-gray-400">Page {currentPage} of {totalPages}</span>
+                <button
+                  onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 rounded-lg border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <>
             {featured.length > 0 && (
@@ -385,7 +476,7 @@ function HomeContent() {
   )
 }
 
-function EmptyState() {
+function EmptyState({ search }: { search?: string }) {
   return (
     <div className="text-center py-20">
       <div className="w-24 h-24 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -395,7 +486,9 @@ function EmptyState() {
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">No Articles Found</h2>
       <p className="text-gray-400 max-w-md mx-auto">
-        No articles match your search criteria. Try adjusting the filters or keywords.
+        {search
+          ? `No results for "${search}". Try different keywords.`
+          : "No articles match your current filters."}
       </p>
     </div>
   )

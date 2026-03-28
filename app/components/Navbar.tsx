@@ -2,72 +2,12 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname, useRouter } from "next/navigation"
-import { useState, useEffect, useRef } from "react"
-import { buildArticlePath } from "@/lib/article-slug"
-
-interface SearchResult {
-  id: number
-  title: string
-  featured_image?: string
-  excerpt?: string
-  created_at: string
-}
+import { usePathname } from "next/navigation"
+import { useState } from "react"
 
 export default function Navbar() {
   const pathname = usePathname()
-  const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [showDropdown, setShowDropdown] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
-
-  // Handle search
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([])
-      setShowDropdown(false)
-      return
-    }
-
-    setIsSearching(true)
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/articles?search=${encodeURIComponent(searchQuery.trim())}&limit=8&page=1`)
-        const data = await response.json()
-
-        setSearchResults(Array.isArray(data.articles) ? data.articles : [])
-        setShowDropdown(true)
-      } catch (error) {
-        console.error("Search error:", error)
-      } finally {
-        setIsSearching(false)
-      }
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [searchQuery])
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  const handleSearchResultClick = (result: SearchResult) => {
-    setSearchQuery("")
-    setShowDropdown(false)
-    setIsMobileMenuOpen(false)
-    router.push(buildArticlePath(result.id, result.title))
-  }
 
   return (
     <header className="relative z-50 backdrop-blur-md bg-black/40 border-b border-cyan-500/20 sticky top-0">
@@ -86,44 +26,6 @@ export default function Navbar() {
               priority
             />
           </Link>
-
-          {/* Center Search Bar - Desktop Only */}
-          <div ref={searchRef} className="hidden lg:flex flex-1 max-w-sm relative">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => searchQuery.trim() && setShowDropdown(true)}
-                className="w-full px-3 py-2 rounded-lg bg-gray-800/50 border border-cyan-500/30 text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-all text-sm"
-              />
-              {showDropdown && searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-black/90 border border-cyan-500/30 rounded-lg overflow-hidden z-50 backdrop-blur-sm max-h-80 overflow-y-auto">
-                  {searchResults.map((result) => (
-                    <button
-                      key={result.id}
-                      onClick={() => handleSearchResultClick(result)}
-                      className="w-full px-3 py-2 hover:bg-cyan-500/20 transition-all flex gap-2 items-start border-b border-cyan-500/10 last:border-b-0 text-left"
-                    >
-                      {result.featured_image && (
-                        <img
-                          src={result.featured_image}
-                          alt={result.title}
-                          className="w-10 h-10 object-cover rounded flex-shrink-0"
-                          loading="lazy"
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-xs font-semibold text-white line-clamp-1">{result.title}</h4>
-                        <p className="text-[10px] text-cyan-400/60">{new Date(result.created_at).toLocaleDateString()}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
@@ -170,34 +72,7 @@ export default function Navbar() {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden mt-4 pb-4 border-t border-cyan-500/20 space-y-3">
-            {/* Mobile Search */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => searchQuery.trim() && setShowDropdown(true)}
-                className="w-full px-3 py-2 rounded-lg bg-gray-800/50 border border-cyan-500/30 text-white placeholder-gray-400 focus:outline-none text-sm"
-              />
-              {showDropdown && searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-black/90 border border-cyan-500/30 rounded-lg overflow-hidden z-50 max-h-64 overflow-y-auto">
-                  {searchResults.map((result) => (
-                    <button
-                      key={result.id}
-                      onClick={() => handleSearchResultClick(result)}
-                      className="w-full px-3 py-2 hover:bg-cyan-500/20 text-left border-b border-cyan-500/10 last:border-b-0"
-                    >
-                      <h4 className="text-xs font-semibold text-white line-clamp-1">{result.title}</h4>
-                      <p className="text-[10px] text-cyan-400/60">{new Date(result.created_at).toLocaleDateString()}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Mobile Navigation */}
+          <div className="md:hidden mt-4 pb-4 border-t border-cyan-500/20 space-y-1 pt-3">
             <Link
               href="/"
               onClick={() => setIsMobileMenuOpen(false)}
