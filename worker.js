@@ -636,9 +636,13 @@ Source Content: ${sourceContent.slice(0, 2000)}
 
 OUTPUT FORMAT (follow exactly):
 1. First line: A SPECIFIC, SEO-friendly headline (55-80 chars)
+   - Structure: Subject + Verb + Object (e.g., "[Who] [Does/Announces/Wins] [What]")
    - Must mention WHO and WHAT specifically (name, organization, country, topic)
    - Must be descriptive enough to stand alone without reading the article
-   - BAD examples (too vague): "The Courtesy Visit", "Breaking News", "Official Statement", "New Development"
+   - Use present tense or past participle (e.g., "Launches", "Signs", "Warns", "Passed")
+   - Do NOT start with "The", "A", or "An" — start with a proper noun, organization, or country name
+   - Do NOT write a body sentence (e.g., "The root of the crisis lies in...") — write a headline
+   - BAD examples: "The Courtesy Visit", "Breaking News", "A Momentum Shift", "The legal case is unprecedented"
    - GOOD examples: "ASEAN Secretary-General Meets UN University Network Chief in Jakarta", "South Africa Composer Sues Comedian Over Lion King Chant Misrepresentation", "UN Votes to Label Transatlantic Slave Trade as Gravest Crime Against Humanity"
 2. Blank line
 3. Second line: IMAGE_HINT: 4-8 keywords in English for photo search
@@ -805,14 +809,18 @@ Begin:`
 
     // Pola heading/headline yang terlalu generik / tidak SEO
     const genericSectionTitles = /^(introduction|background|overview|conclusion|summary|context|analysis|details?|contents?|breaking news|news brief|latest news|update|report|the (latest|news|update|report|visit|meeting|event|announcement|statement|development))\b/i
-    // Headline dianggap valid hanya jika panjang >= 40 dan tidak generik
-    const isValidHeadline = (s) => s.length >= 40 && s.length <= 120 && !genericSectionTitles.test(s)
+    // Pola kalimat isi artikel (bukan headline): "The X is/was/lies/has/carries...", "A X is..."
+    const bodySentencePattern = /^(the|a|an)\s+\w+(\s+\w+)?\s+(is|was|are|were|has|have|lies|lie|carries|carry|remain|remains|shows?|shows?|indicates?|suggests?|reveals?|comes?|came|goes?|went|continues?|started?|began?|became?|includes?|involves?|affects?)\b/i
+    // Headline valid: 50-120 char, bukan generik, bukan pola kalimat isi
+    const isValidHeadline = (s) => s.length >= 50 && s.length <= 120 && !genericSectionTitles.test(s) && !bodySentencePattern.test(s)
 
+    let seenHeading = false
     for (const line of finalLines.slice(0, 5)) {
       const trimmed = line.trim()
       if (!trimmed) continue
 
       if (trimmed.startsWith('#')) {
+        seenHeading = true
         const candidate = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim()
         if (!isValidHeadline(candidate)) continue
         seoHeadline = candidate
@@ -825,7 +833,8 @@ Begin:`
           cleanContent = finalLines.filter(l => l.trim() !== trimmed).join('\n').trim()
           break
         }
-      } else if (!trimmed.startsWith('-') && !trimmed.startsWith('|') && !trimmed.startsWith('#')) {
+      } else if (!seenHeading && !trimmed.startsWith('-') && !trimmed.startsWith('|') && !trimmed.startsWith('#')) {
+        // Only use plain text as headline if no heading has been seen yet (i.e. it truly is the first line)
         const candidate = trimmed.replace(/\*\*/g, '').trim()
         if (isValidHeadline(candidate)) {
           seoHeadline = candidate
@@ -835,7 +844,13 @@ Begin:`
       }
     }
 
-    // Fallback 1: coba ambil kalimat pertama dari paragraf pembuka artikel
+    // Fallback 1: gunakan source title yang sudah dibersihkan
+    if (!seoHeadline || !isValidHeadline(seoHeadline)) {
+      seoHeadline = title.split(' - ')[0].replace(/\s*[-|:]\s*$/, '').trim().slice(0, 95)
+      console.log('[HEADLINE] Fell back to source title')
+    }
+
+    // Fallback 2 (last resort): coba ambil kalimat pertama dari paragraf pembuka artikel
     if (!seoHeadline || !isValidHeadline(seoHeadline)) {
       for (const line of finalLines) {
         const t = line.trim()
@@ -848,12 +863,6 @@ Begin:`
           break
         }
       }
-    }
-
-    // Fallback 2: gunakan source title yang sudah dibersihkan
-    if (!seoHeadline || !isValidHeadline(seoHeadline)) {
-      seoHeadline = title.split(' - ')[0].replace(/\s*[-|:]\s*$/, '').trim().slice(0, 95)
-      console.log('[HEADLINE] Fell back to source title')
     }
 
     if (seoHeadline.length > 95) seoHeadline = seoHeadline.slice(0, 92).trim() + '...'

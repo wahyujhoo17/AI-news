@@ -181,8 +181,9 @@ export async function getArticleBySlug(slug: string) {
   }
 
   // fallback: match by normalized title in JS to cover edge cases
+  // LIMIT 500 most recent to avoid loading entire table into memory
   const fallback = await pool.query<Article>(
-    `SELECT * FROM articles WHERE is_published = true`
+    `SELECT * FROM articles WHERE is_published = true ORDER BY created_at DESC LIMIT 500`
   )
   return fallback.rows.find((article) => {
     const articleSlug = normalizeArticleSlug(article.title || "")
@@ -191,7 +192,14 @@ export async function getArticleBySlug(slug: string) {
 }
 
 export async function getAllCategories() {
-  const result = await pool.query<Category>("SELECT * FROM categories ORDER BY name")
+  const result = await pool.query<Category & { article_count?: number }>(
+    `SELECT c.*, COUNT(DISTINCT ac.article_id)::int AS article_count
+     FROM categories c
+     LEFT JOIN article_categories ac ON c.id = ac.category_id
+     LEFT JOIN articles a ON ac.article_id = a.id AND a.is_published = true
+     GROUP BY c.id
+     ORDER BY COUNT(DISTINCT ac.article_id) DESC, c.name`
+  )
   return result.rows
 }
 

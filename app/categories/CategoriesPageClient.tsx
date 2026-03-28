@@ -30,55 +30,62 @@ export default function CategoriesPageClient() {
   const [articles, setArticles] = useState<Article[]>([])
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingArticles, setLoadingArticles] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalArticles, setTotalArticles] = useState(0)
   const [categorySearch, setCategorySearch] = useState("")
   const [showAllCategories, setShowAllCategories] = useState(false)
 
-  const ARTICLES_PER_PAGE = 12
   const DEFAULT_VISIBLE_CATEGORIES = 15
 
+  // Load categories once on mount (with accurate article counts from DB)
   useEffect(() => {
-    fetch("/api/articles?limit=100")
+    fetch("/api/categories")
       .then((res) => res.json())
       .then((data) => {
-        const allCategories = Array.isArray(data.categories) ? data.categories : []
-        const allArticles = Array.isArray(data.articles) ? data.articles : []
-
-        const categoryCount: { [key: string]: number } = {}
-        allArticles.forEach((article: Article) => {
-          if (article.categories) {
-            article.categories.split(", ").forEach((cat) => {
-              const trimmed = cat.trim()
-              categoryCount[trimmed] = (categoryCount[trimmed] || 0) + 1
-            })
-          }
-        })
-
-        const sorted: Category[] = allCategories
-          .map((cat: Category) => ({
+        const sorted: Category[] = (Array.isArray(data.categories) ? data.categories : [])
+          .map((cat: Category & { article_count?: number }) => ({
             ...cat,
-            count: categoryCount[cat.name] || 0,
+            count: cat.article_count || 0,
           }))
           .sort((a: Category, b: Category) => (b.count || 0) - (a.count || 0))
-
         setCategories(sorted)
-        setArticles(allArticles)
         if (sorted.length > 0) {
           setSelectedCategory(sorted[0])
         }
         setLoading(false)
       })
       .catch((err) => {
-        console.error("Failed to fetch:", err)
+        console.error("Failed to fetch categories:", err)
         setLoading(false)
       })
   }, [])
 
-  const articlesInCategory = selectedCategory
-    ? articles.filter((a) =>
-        a.categories?.toLowerCase().includes(selectedCategory.name.toLowerCase())
-      )
-    : []
+  // Fetch articles from server whenever selected category or page changes
+  useEffect(() => {
+    if (!selectedCategory) return
+    setLoadingArticles(true)
+    const params = new URLSearchParams({
+      category: selectedCategory.slug,
+      page: currentPage.toString(),
+      limit: "12",
+    })
+    fetch(`/api/articles?${params}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setArticles(Array.isArray(data.articles) ? data.articles : [])
+        if (data.pagination) {
+          setTotalPages(data.pagination.totalPages)
+          setTotalArticles(data.pagination.total)
+        }
+        setLoadingArticles(false)
+      })
+      .catch((err) => {
+        console.error("Failed to fetch articles:", err)
+        setLoadingArticles(false)
+      })
+  }, [selectedCategory, currentPage])
 
   const filteredCategories = useMemo(() => {
     const q = categorySearch.trim().toLowerCase()
@@ -92,14 +99,8 @@ export default function CategoriesPageClient() {
     ? filteredCategories
     : filteredCategories.slice(0, DEFAULT_VISIBLE_CATEGORIES)
 
-  const totalPages = Math.ceil(articlesInCategory.length / ARTICLES_PER_PAGE)
-  const paginatedArticles = articlesInCategory.slice(
-    (currentPage - 1) * ARTICLES_PER_PAGE,
-    currentPage * ARTICLES_PER_PAGE
-  )
-
-  const paginatedArticlesWithImage = paginatedArticles.filter((article) => article.featured_image)
-  const paginatedArticlesWithoutImage = paginatedArticles.filter((article) => !article.featured_image)
+  const articlesWithImage = articles.filter((article) => article.featured_image)
+  const articlesWithoutImage = articles.filter((article) => !article.featured_image)
 
   const handleCategoryChange = (category: Category) => {
     setSelectedCategory(category)
@@ -195,15 +196,23 @@ export default function CategoriesPageClient() {
                   <div className="mb-8">
                     <h2 className="text-2xl font-bold text-white mb-2">{selectedCategory.name}</h2>
                     <p className="text-gray-400">
-                      {articlesInCategory.length} {articlesInCategory.length === 1 ? "article" : "articles"} found
+                      {totalArticles} {totalArticles === 1 ? "article" : "articles"} found
                     </p>
                   </div>
 
-                  {paginatedArticles.length > 0 ? (
+                  {loadingArticles ? (
+                    <div className="flex justify-center items-center py-16">
+                      <div className="animate-spin">
+                        <svg className="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </div>
+                    </div>
+                  ) : articles.length > 0 ? (
                     <>
-                      {paginatedArticlesWithImage.length > 0 && (
+                      {articlesWithImage.length > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-                          {paginatedArticlesWithImage.map((article) => (
+                          {articlesWithImage.map((article) => (
                             <Link
                               key={article.id}
                               href={buildArticlePath(article.id, article.title)}
@@ -241,11 +250,11 @@ export default function CategoriesPageClient() {
                         </div>
                       )}
 
-                      {paginatedArticlesWithoutImage.length > 0 && (
+                      {articlesWithoutImage.length > 0 && (
                         <div className="mb-12">
                           <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-4">More Stories</h3>
                           <div className="space-y-5">
-                            {paginatedArticlesWithoutImage.map((article) => (
+                            {articlesWithoutImage.map((article) => (
                               <Link
                                 key={article.id}
                                 href={buildArticlePath(article.id, article.title)}
