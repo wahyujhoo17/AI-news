@@ -173,42 +173,61 @@ function HomeContent() {
   return (
     <>
       <div className="relative z-40 backdrop-blur-sm bg-black/30 border-b border-cyan-500/20">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          {/* Desktop: categories left, search right */}
-          <div className="flex items-center gap-4">
-          <div className="flex gap-2 overflow-x-auto whitespace-nowrap flex-1">
-            <button
-              onClick={() => handleCategoryChange("")}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
-                !selectedCategory
-                  ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/50"
-                  : "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white border border-gray-700/50"
-              }`}
-            >
-              All
-            </button>
-            {categories.map((cat) => (
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
+          {/* Mobile: search on top, categories below */}
+          <div className="relative mb-3 lg:hidden">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search articles..."
+              className="w-full px-4 py-2 rounded-lg bg-gray-800/50 border border-cyan-500/30 text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-all text-sm"
+            />
+            {search && (
               <button
-                key={cat.id}
-                onClick={() => handleCategoryChange(cat.slug)}
-                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
-                  selectedCategory === cat.slug
-                    ? "text-white shadow-lg"
-                    : "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50"
-                }`}
-                style={
-                  selectedCategory === cat.slug
-                    ? {
-                        background: `linear-gradient(135deg, ${cat.color || "#06B6D4"}, ${cat.color || "#06B6D4"})`,
-                        boxShadow: `0 0 20px ${cat.color || "#06B6D4"}40`,
-                      }
-                    : {}
-                }
+                onClick={() => { setSearch(""); setDebouncedSearch("") }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs"
               >
-                {cat.name}
+                ✕
               </button>
-            ))}
+            )}
           </div>
+          {/* Categories + search row */}
+          <div className="flex items-center gap-3">
+            <div className="flex gap-2 overflow-x-auto whitespace-nowrap flex-1 pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <button
+                onClick={() => handleCategoryChange("")}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+                  !selectedCategory
+                    ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white ring-2 ring-cyan-500/50"
+                    : "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white border border-gray-700/50"
+                }`}
+              >
+                All
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => handleCategoryChange(cat.slug)}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
+                    selectedCategory === cat.slug
+                      ? "text-white shadow-lg"
+                      : "bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50"
+                  }`}
+                  style={
+                    selectedCategory === cat.slug
+                      ? {
+                          background: `linear-gradient(135deg, ${cat.color || "#06B6D4"}, ${cat.color || "#06B6D4"})`,
+                          boxShadow: `0 0 20px ${cat.color || "#06B6D4"}40`,
+                        }
+                      : {}
+                  }
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
             {/* Search — right side, desktop only */}
             <div className="relative hidden lg:block flex-shrink-0 w-56">
               <input
