@@ -78,7 +78,7 @@ export default function Navbar() {
             filter: "drop-shadow(0 0 20px rgba(255, 255, 255, 0.4)) drop-shadow(0 0 10px rgba(6, 182, 212, 0.3))"
           }}>
             <Image
-              src="/img/Qbitz.png"
+              src="/img/qbitznew.png"
               alt="Qbitz Logo"
               width={44}
               height={44}

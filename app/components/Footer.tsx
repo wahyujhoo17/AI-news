@@ -18,7 +18,7 @@ export default function Footer() {
                 filter: "drop-shadow(0 0 15px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 8px rgba(6, 182, 212, 0.25))"
               }}>
                 <Image
-                  src="/img/Qbitz.png"
+                  src="/img/qbitznew.png"
                   alt="Qbitz Logo"
                   width={44}
                   height={44}

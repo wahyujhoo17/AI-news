@@ -31,11 +31,15 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-32x32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon-16x16.png', type: 'image/png', sizes: '16x16' },
     ],
-    apple: '/apple-touch-icon.png',
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
     other: [
-      { rel: 'android-chrome-192x192', url: '/android-chrome-192x192.png' },
-      { rel: 'android-chrome-512x512', url: '/android-chrome-512x512.png' },
+      { rel: 'icon', url: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+      { rel: 'icon', url: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
   },
   openGraph: {
@@ -47,7 +51,7 @@ export const metadata: Metadata = {
     siteName: 'Qbitz',
     images: [
       {
-        url: '/img/Qbitz.png',
+        url: '/img/qbitznew.png',
         width: 512,
         height: 512,
         alt: 'Qbitz Logo',
@@ -58,7 +62,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Qbitz - AI-Powered News Platform',
     description: 'Revolutionary news platform powered by AI',
-    images: ['/img/Qbitz.png'],
+    images: ['/img/qbitznew.png'],
   },
 }
 
