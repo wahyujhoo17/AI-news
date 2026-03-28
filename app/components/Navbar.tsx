@@ -74,23 +74,17 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 py-2 sm:py-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo + Brand - Left */}
-          <Link href="/" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity flex-shrink-0" style={{
+          <Link href="/" className="flex items-center hover:opacity-80 transition-opacity flex-shrink-0" style={{
             filter: "drop-shadow(0 0 20px rgba(255, 255, 255, 0.4)) drop-shadow(0 0 10px rgba(6, 182, 212, 0.3))"
           }}>
             <Image
-              src="/img/qbitznew.png"
-              alt="Qbitz Logo"
-              width={44}
-              height={44}
-              className="w-10 h-10 sm:w-11 sm:h-11 object-contain"
+              src="/img/qbitztext.png"
+              alt="Qbitz News Logo"
+              width={180}
+              height={42}
+              className="h-8 sm:h-9 lg:h-10 w-auto object-contain"
               priority
             />
-            <div className="hidden sm:flex flex-col leading-none">
-              <h1 className="text-base sm:text-lg font-black bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-cyan-300">
-                Qbitz
-              </h1>
-              <p className="text-cyan-300/60 text-[8px] sm:text-[9px] tracking-widest font-semibold">NEWS</p>
-            </div>
           </Link>
 
           {/* Center Search Bar - Desktop Only */}

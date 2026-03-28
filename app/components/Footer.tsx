@@ -13,22 +13,16 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           {/* Brand Section */}
           <div className="lg:col-span-1">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="relative w-11 h-11" style={{
-                filter: "drop-shadow(0 0 15px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 8px rgba(6, 182, 212, 0.25))"
-              }}>
-                <Image
-                  src="/img/qbitznew.png"
-                  alt="Qbitz Logo"
-                  width={44}
-                  height={44}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <div>
-                <h3 className="font-black text-cyan-400">Qbitz</h3>
-                <p className="text-[10px] text-cyan-300/60 tracking-widest">NEWS</p>
-              </div>
+            <div className="mb-4" style={{
+              filter: "drop-shadow(0 0 15px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 8px rgba(6, 182, 212, 0.25))"
+            }}>
+              <Image
+                src="/img/qbitztext.png"
+                alt="Qbitz News Logo"
+                width={220}
+                height={52}
+                className="h-9 w-auto object-contain"
+              />
             </div>
             <p className="text-sm text-gray-400 leading-relaxed">
               AI-powered news platform for the digital era. Get the latest information with artificial intelligence technology.
