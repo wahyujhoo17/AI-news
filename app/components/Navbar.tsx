@@ -3,18 +3,27 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, MouseEvent } from "react"
 
 export default function Navbar() {
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  const handleLogoClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault()
+    if (window.location.pathname === "/") {
+      window.location.reload()
+    } else {
+      window.location.href = "/"
+    }
+  }
 
   return (
     <header className="relative z-50 backdrop-blur-md bg-black/40 border-b border-cyan-500/20 sticky top-0">
       <div className="max-w-7xl mx-auto px-4 py-2 sm:py-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo + Brand - Left */}
-          <Link href="/" className="flex items-center hover:opacity-80 transition-opacity flex-shrink-0" style={{
+          <Link href="/" onClick={handleLogoClick} className="flex items-center hover:opacity-80 transition-opacity flex-shrink-0" style={{
             filter: "drop-shadow(0 0 20px rgba(255, 255, 255, 0.4)) drop-shadow(0 0 10px rgba(6, 182, 212, 0.3))"
           }}>
             <Image
