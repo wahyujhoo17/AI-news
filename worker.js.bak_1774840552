@@ -929,8 +929,7 @@ async function classifyArticleWithAI(title, excerpt) {
     const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
 
     // More strict prompt that forces output format
-    const prompt = `Categorize this article. You may create new categories if needed. Respond with ONLY 1-3 category names, separated by commas. Each name must be lowercase, single word or hyphenated. No other text.
-If existing categories fit, use them; otherwise feel free to introduce new, specific categories.
+    const prompt = `Categorize this article. Respond with ONLY 1-3 category names, separated by commas. Each name must be lowercase, single word or hyphenated. No other text.
 
 Title: ${title}
 Excerpt: ${excerpt}
@@ -946,7 +945,7 @@ Your output:`
           { role: 'user', content: prompt }
         ],
         max_tokens: 30,
-        temperature: 0.3
+        temperature: 0.1
       },
       {
         headers: {
