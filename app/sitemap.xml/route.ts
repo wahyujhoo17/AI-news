@@ -24,6 +24,10 @@ export async function GET() {
     xml += `    <loc>${SITE_URL}/sitemap-pages.xml</loc>\n`
     xml += `    <lastmod>${formatSitemapDate()}</lastmod>\n`
     xml += '  </sitemap>\n'
+    xml += '  <sitemap>\n'
+    xml += `    <loc>${SITE_URL}/sitemap-news.xml</loc>\n`
+    xml += `    <lastmod>${formatSitemapDate()}</lastmod>\n`
+    xml += '  </sitemap>\n'
 
     for (let page = 1; page <= totalArticleSitemaps; page++) {
       xml += '  <sitemap>\n'

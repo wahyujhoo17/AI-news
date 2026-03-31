@@ -171,8 +171,11 @@ export async function getArticleBySlug(slug: string) {
     return undefined
   }
 
+  // Exact match: normalize title the same way as JS (also strip leading/trailing hyphens)
   const result = await pool.query<Article>(
-    `SELECT * FROM articles WHERE is_published = true AND lower(regexp_replace(trim(title), '[^a-z0-9]+', '-', 'g')) = $1 LIMIT 1`,
+    `SELECT * FROM articles WHERE is_published = true
+     AND trim(both '-' from lower(regexp_replace(trim(title), '[^a-z0-9]+', '-', 'g'))) = $1
+     LIMIT 1`,
     [normalizedSlug]
   )
 
@@ -180,14 +183,32 @@ export async function getArticleBySlug(slug: string) {
     return result.rows[0]
   }
 
-  // fallback: match by normalized title in JS to cover edge cases
+  // Fuzzy match: compare only alphanumeric chars, ignoring all separators.
+  // Handles legacy URLs where apostrophes/special chars produced different hyphens
+  // e.g. "Kennedy Center's" → "kennedycenters" matches slug "kennedy-centers"
+  const alphanumSlug = normalizedSlug.replace(/-/g, "")
+  if (alphanumSlug.length >= 10) {
+    const fuzzy = await pool.query<Article>(
+      `SELECT * FROM articles WHERE is_published = true
+       AND lower(regexp_replace(title, '[^a-z0-9]', '', 'gi')) = $1
+       LIMIT 1`,
+      [alphanumSlug]
+    )
+    if (fuzzy.rows.length > 0) {
+      return fuzzy.rows[0]
+    }
+  }
+
+  // Final fallback: JS-side comparison over recent articles
   // LIMIT 500 most recent to avoid loading entire table into memory
   const fallback = await pool.query<Article>(
     `SELECT * FROM articles WHERE is_published = true ORDER BY created_at DESC LIMIT 500`
   )
   return fallback.rows.find((article) => {
     const articleSlug = normalizeArticleSlug(article.title || "")
-    return articleSlug === normalizedSlug
+    // Also try alphanumeric-only comparison for legacy slugs
+    return articleSlug === normalizedSlug ||
+      articleSlug.replace(/-/g, "") === alphanumSlug
   })
 }
 

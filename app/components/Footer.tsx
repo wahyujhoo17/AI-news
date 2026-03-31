@@ -51,24 +51,24 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Features */}
+          {/* Company */}
           <div>
-            <h4 className="font-bold text-white mb-4">Features</h4>
+            <h4 className="font-bold text-white mb-4">Company</h4>
             <ul className="space-y-2">
               <li>
-                <a href="/#" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
-                  Real-time Updates
-                </a>
+                <Link href="/about" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
+                  About Us
+                </Link>
               </li>
               <li>
-                <a href="/categories" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
+                <Link href="/contact" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
+                  Contact Us
+                </Link>
+              </li>
+              <li>
+                <Link href="/categories" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
                   Browse Categories
-                </a>
-              </li>
-              <li>
-                <a href="/#" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
-                  Smart Search
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -78,19 +78,24 @@ export default function Footer() {
             <h4 className="font-bold text-white mb-4">Legal</h4>
             <ul className="space-y-2">
               <li>
-                <a href="/about" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
-                  About Us
-                </a>
-              </li>
-              <li>
-                <a href="/privacy" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
+                <Link href="/privacy" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
                   Privacy Policy
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/terms" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
+                <Link href="/terms" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
                   Terms of Service
-                </a>
+                </Link>
+              </li>
+              <li>
+                <Link href="/disclaimer" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
+                  Disclaimer
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact" className="text-gray-400 hover:text-cyan-300 transition-colors text-sm">
+                  Contact Us
+                </Link>
               </li>
             </ul>
           </div>

@@ -503,6 +503,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
+const siteUrl = 'https://qbitznews.com'
+
 export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const article = await getArticleBySlug(slug)
@@ -529,6 +531,53 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     month: "long",
     day: "numeric",
   })
+  const publishedIso = published.toISOString()
+  const modifiedIso = new Date(article.created_at).toISOString()
+  const canonicalUrl = `${siteUrl}${buildArticlePath(article.id, article.title)}`
+  const description = buildArticleDescription(article)
+
+  const newsArticleSchema = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: article.title,
+    description,
+    datePublished: publishedIso,
+    dateModified: modifiedIso,
+    url: canonicalUrl,
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": canonicalUrl,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "Qbitz",
+      url: siteUrl,
+      logo: {
+        "@type": "ImageObject",
+        url: `${siteUrl}/img/qbitznew.png`,
+        width: 512,
+        height: 512,
+      },
+    },
+    ...(article.source_name && {
+      author: {
+        "@type": "Organization",
+        name: article.source_name,
+        ...(article.source_url && { url: article.source_url }),
+      },
+    }),
+    ...(article.featured_image && {
+      image: {
+        "@type": "ImageObject",
+        url: article.featured_image,
+        caption: article.title,
+      },
+    }),
+    ...(article.categories && {
+      keywords: article.categories,
+      articleSection: article.categories.split(",")[0].trim(),
+    }),
+  }
 
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
@@ -540,6 +589,11 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
       <Navbar />
 
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(newsArticleSchema) }}
+      />
+
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <article>
           {article.featured_image && (
@@ -549,6 +603,9 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                   src={article.featured_image}
                   alt={article.title}
                   className="w-full h-auto object-contain"
+                  fetchPriority="high"
+                  loading="eager"
+                  decoding="async"
                 />
               </div>
               {(() => {
@@ -575,13 +632,33 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
               {article.title}
             </h1>
 
-            <div className="flex items-center gap-4 text-sm text-gray-400 mb-6">
-              <time className="flex items-center gap-2">
+            <div className="flex items-center flex-wrap gap-4 text-sm text-gray-400 mb-6">
+              <time dateTime={publishedIso} className="flex items-center gap-2">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M6 2a1 1 0 00-1 1v2H4a2 2 0 00-2 2v2h20V7a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v2H7V3a1 1 0 00-1-1zm0 5H4v9a2 2 0 002 2h12a2 2 0 002-2V7h-2v2a1 1 0 11-2 0V7H8v2a1 1 0 11-2 0V7z" />
                 </svg>
                 {formattedDate}
               </time>
+              {article.source_name && (
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+                  </svg>
+                  Source:{" "}
+                  {article.source_url ? (
+                    <a
+                      href={article.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-cyan-400 transition-colors underline underline-offset-2"
+                    >
+                      {article.source_name}
+                    </a>
+                  ) : (
+                    <span>{article.source_name}</span>
+                  )}
+                </span>
+              )}
             </div>
 
             {article.excerpt && (
