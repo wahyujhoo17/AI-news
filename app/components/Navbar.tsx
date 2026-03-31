@@ -8,6 +8,10 @@ import { useState, MouseEvent } from "react"
 export default function Navbar() {
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const isId = pathname.startsWith("/id")
+  const homeHref = isId ? "/id" : "/"
+  const categoriesHref = isId ? "/id/categories" : "/categories"
+  const aboutHref = "/about"
 
   const handleLogoClick = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault()
@@ -39,29 +43,40 @@ export default function Navbar() {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
             <Link
-              href="/"
+              href={homeHref}
               className={`text-sm font-semibold transition-colors ${
-                pathname === "/" ? "text-cyan-400" : "text-gray-300 hover:text-cyan-300"
+                pathname === "/" || pathname === "/id" ? "text-cyan-400" : "text-gray-300 hover:text-cyan-300"
               }`}
             >
               Home
             </Link>
             <Link
-              href="/categories"
+              href={categoriesHref}
               className={`text-sm font-semibold transition-colors ${
-                pathname === "/categories" ? "text-cyan-400" : "text-gray-300 hover:text-cyan-300"
+                pathname === "/categories" || pathname === "/id/categories" ? "text-cyan-400" : "text-gray-300 hover:text-cyan-300"
               }`}
             >
               Categories
             </Link>
             <Link
-              href="/about"
+              href={aboutHref}
               className={`text-sm font-semibold transition-colors ${
                 pathname === "/about" ? "text-cyan-400" : "text-gray-300 hover:text-cyan-300"
               }`}
             >
               About
             </Link>
+            {pathname.startsWith("/id") && (
+              <button
+                onClick={() => {
+                  document.cookie = "qbitz_lang=en; max-age=2592000; path=/; samesite=lax"
+                  window.location.href = "/"
+                }}
+                className="text-sm font-semibold text-cyan-400 hover:text-cyan-300 border border-cyan-500/40 rounded-md px-3 py-1 transition-colors"
+              >
+                🌐 Switch to English
+              </button>
+            )}
           </nav>
 
           {/* Mobile Menu Button */}
@@ -83,25 +98,25 @@ export default function Navbar() {
         {isMobileMenuOpen && (
           <div className="md:hidden mt-4 pb-4 border-t border-cyan-500/20 space-y-1 pt-3">
             <Link
-              href="/"
+              href={homeHref}
               onClick={() => setIsMobileMenuOpen(false)}
               className={`block px-3 py-2 rounded-lg font-semibold text-sm ${
-                pathname === "/" ? "bg-cyan-500/20 text-cyan-300" : "text-gray-300"
+                pathname === "/" || pathname === "/id" ? "bg-cyan-500/20 text-cyan-300" : "text-gray-300"
               }`}
             >
               Home
             </Link>
             <Link
-              href="/categories"
+              href={categoriesHref}
               onClick={() => setIsMobileMenuOpen(false)}
               className={`block px-3 py-2 rounded-lg font-semibold text-sm ${
-                pathname === "/categories" ? "bg-cyan-500/20 text-cyan-300" : "text-gray-300"
+                pathname === "/categories" || pathname === "/id/categories" ? "bg-cyan-500/20 text-cyan-300" : "text-gray-300"
               }`}
             >
               Categories
             </Link>
             <Link
-              href="/about"
+              href={aboutHref}
               onClick={() => setIsMobileMenuOpen(false)}
               className={`block px-3 py-2 rounded-lg font-semibold text-sm ${
                 pathname === "/about" ? "bg-cyan-500/20 text-cyan-300" : "text-gray-300"
@@ -109,6 +124,17 @@ export default function Navbar() {
             >
               About
             </Link>
+            {pathname.startsWith("/id") && (
+              <button
+                onClick={() => {
+                  document.cookie = "qbitz_lang=en; max-age=2592000; path=/; samesite=lax"
+                  window.location.href = "/"
+                }}
+                className="block w-full text-left px-3 py-2 rounded-lg font-semibold text-sm text-cyan-400 border border-cyan-500/30"
+              >
+                🌐 Switch to English
+              </button>
+            )}
           </div>
         )}
       </div>

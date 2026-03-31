@@ -8,15 +8,17 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get("limit") || "12")
     const category = searchParams.get("category") || undefined
     const search = (searchParams.get("search") || "").trim()
+    const language = searchParams.get("language") || "en"
 
     const { articles, pagination } = await db.getRecentArticlesPaginated({
       page,
       limit,
       categorySlug: category,
       search,
+      language,
     })
 
-    const categories = search ? [] : await db.getAllCategories()
+    const categories = search ? [] : await db.getAllCategories(language)
 
     return NextResponse.json({
       articles,

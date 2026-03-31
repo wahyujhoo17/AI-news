@@ -29,6 +29,7 @@ export type Article = {
   author?: string | null
   views?: number
   categories?: string
+  language: string
 }
 
 export type ArticleListItem = {
@@ -43,6 +44,7 @@ export type ArticleListItem = {
   featured_image?: string | null
   views?: number
   categories?: string
+  language?: string
 }
 
 export type Category = {
@@ -77,11 +79,13 @@ export async function getRecentArticlesPaginated(options?: {
   limit?: number
   categorySlug?: string
   search?: string
+  language?: string
 }) {
   const requestedPage = Math.max(1, options?.page || 1)
   const limit = Math.min(100, Math.max(1, options?.limit || 12))
   const categorySlug = options?.categorySlug
   const search = (options?.search || "").trim().toLowerCase()
+  const language = options?.language
 
   const where: string[] = ["a.is_published = true"]
   const params: any[] = []
@@ -94,6 +98,11 @@ export async function getRecentArticlesPaginated(options?: {
   if (search) {
     params.push(`%${search}%`)
     where.push(`(LOWER(a.title) LIKE $${params.length} OR LOWER(COALESCE(a.excerpt, '')) LIKE $${params.length})`)
+  }
+
+  if (language) {
+    params.push(language)
+    where.push(`a.language = $${params.length}`)
   }
 
   const whereClause = `WHERE ${where.join(" AND ")}`
@@ -212,7 +221,20 @@ export async function getArticleBySlug(slug: string) {
   })
 }
 
-export async function getAllCategories() {
+export async function getAllCategories(language?: string) {
+  if (language) {
+    const result = await pool.query<Category & { article_count?: number }>(
+      `SELECT c.*, COUNT(DISTINCT a.id)::int AS article_count
+       FROM categories c
+       LEFT JOIN article_categories ac ON c.id = ac.category_id
+       LEFT JOIN articles a ON ac.article_id = a.id AND a.is_published = true AND a.language = $1
+       GROUP BY c.id
+       HAVING COUNT(DISTINCT a.id) > 0
+       ORDER BY COUNT(DISTINCT a.id) DESC, c.name`,
+      [language]
+    )
+    return result.rows
+  }
   const result = await pool.query<Category & { article_count?: number }>(
     `SELECT c.*, COUNT(DISTINCT ac.article_id)::int AS article_count
      FROM categories c

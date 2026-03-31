@@ -12,6 +12,9 @@ export async function GET() {
     { url: '/disclaimer', changefreq: 'yearly', priority: 0.5 },
     { url: '/privacy', changefreq: 'yearly', priority: 0.5 },
     { url: '/terms', changefreq: 'yearly', priority: 0.5 },
+    // Indonesian section
+    { url: '/id', changefreq: 'daily', priority: 0.9 },
+    { url: '/id/categories', changefreq: 'weekly', priority: 0.8 },
   ]
 
   let xml = '<?xml version="1.0" encoding="UTF-8"?>\n'

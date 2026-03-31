@@ -22,6 +22,7 @@ interface Article {
   excerpt?: string
   categories?: string
   featured_image?: string
+  language?: string
 }
 
 async function getArticleBySlug(slug: string): Promise<Article | null> {
@@ -49,7 +50,8 @@ async function getArticleBySlug(slug: string): Promise<Article | null> {
 
 async function getRecommendedArticles(currentArticle: Article, limit: number = 3): Promise<Article[]> {
   try {
-    const res = await fetch("http://localhost:3001/api/articles?limit=50", {
+    const lang = currentArticle.language || 'en'
+    const res = await fetch(`http://localhost:3001/api/articles?limit=50&language=${lang}`, {
       cache: "no-store",
     })
 
@@ -525,8 +527,9 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
   const recommendedReadingArticles = recommendedArticles.filter(
     (item) => Boolean(item.featured_image) && !readAlsoIds.has(item.id)
   )
+  const isId = article.language === 'id'
   const published = new Date(article.published_at || article.created_at)
-  const formattedDate = published.toLocaleDateString("en-US", {
+  const formattedDate = published.toLocaleDateString(isId ? "id-ID" : "en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -676,7 +679,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             <div className="mb-8 p-4 border-l-4 border-cyan-500/60 bg-cyan-500/5 rounded-r space-y-4">
               {readAlsoArticles.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">Read also:</h3>
+                  <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">{isId ? 'Baca juga:' : 'Read also:'}</h3>
                   <div className="space-y-2">
                     {readAlsoArticles.map((relatedArticle) => (
                       <Link
@@ -714,7 +717,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                 <svg className="w-8 h-8 text-cyan-400" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M7 7a3 3 0 11-6 0 3 3 0 016 0zM7 15a3 3 0 11-6 0 3 3 0 016 0zM16 15a3 3 0 11-6 0 3 3 0 016 0zM16 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                Recommended Reading
+                {isId ? 'Artikel Terkait' : 'Recommended Reading'}
               </h2>
               <div className="w-80 h-1 bg-gradient-to-r from-cyan-500 to-transparent rounded-full mb-8"></div>
 
@@ -745,7 +748,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                     <div className="p-4 flex-1 flex flex-col">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-gray-400 text-xs">
-                          {new Date(recArticle.created_at).toLocaleDateString("en-US", {
+                          {new Date(recArticle.created_at).toLocaleDateString(isId ? "id-ID" : "en-US", {
                             month: "short",
                             day: "numeric",
                           })}
