@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useRef, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Navbar from "./components/Navbar"
 import Footer from "./components/Footer"
@@ -425,11 +425,10 @@ function HomeContent({
   initialTotal = 0,
 }: { language?: string; prefix?: string } & InitialData) {
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   const hasSSRData = initialArticles.length > 0
-  // Skip the first client-side fetch only when we have SSR data and no category filter in URL
-  const skipFirstFetch = useRef(hasSSRData && !searchParams.get("category"))
+  // Skip the first client-side fetch when we have SSR data (category filter applied after mount)
+  const skipFirstFetch = useRef(hasSSRData)
 
   const [articles, setArticles] = useState<Article[]>(initialArticles)
   const [trendingArticles, setTrendingArticles] = useState<Article[]>(initialTrending)
@@ -438,18 +437,28 @@ function HomeContent({
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "")
+  const [selectedCategory, setSelectedCategory] = useState("")
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [total, setTotal] = useState(initialTotal)
+
+  // Read ?category from URL on client mount (avoids useSearchParams Suspense deferral)
+  useEffect(() => {
+    const cat = new URLSearchParams(window.location.search).get("category") || ""
+    if (cat) setSelectedCategory(cat)
+  }, [])
   const searchInputRef = useRef<HTMLInputElement>(null)
   const isSearchMode = debouncedSearch.trim().length > 0
 
-  // Sync category from URL
+  // Sync category from URL on popstate (browser back/forward)
   useEffect(() => {
-    const cat = searchParams.get("category") || ""
-    setSelectedCategory((prev) => (prev === cat ? prev : cat))
-  }, [searchParams])
+    const handler = () => {
+      const cat = new URLSearchParams(window.location.search).get("category") || ""
+      setSelectedCategory((prev) => (prev === cat ? prev : cat))
+    }
+    window.addEventListener("popstate", handler)
+    return () => window.removeEventListener("popstate", handler)
+  }, [])
 
   // Debounce search
   useEffect(() => {
@@ -702,17 +711,15 @@ export default function HomePageClient({
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl" />
       </div>
       <Navbar />
-      <Suspense fallback={<div className="h-screen" />}>
-        <HomeContent
-          language={language}
-          prefix={prefix}
-          initialArticles={initialArticles}
-          initialCategories={initialCategories}
-          initialTrending={initialTrending}
-          initialHasMore={initialHasMore}
-          initialTotal={initialTotal}
-        />
-      </Suspense>
+      <HomeContent
+        language={language}
+        prefix={prefix}
+        initialArticles={initialArticles}
+        initialCategories={initialCategories}
+        initialTrending={initialTrending}
+        initialHasMore={initialHasMore}
+        initialTotal={initialTotal}
+      />
       <Footer />
     </div>
   )
