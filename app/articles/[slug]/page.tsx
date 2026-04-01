@@ -149,9 +149,9 @@ function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page")
   const titleLength = title.trim().length
 
   if (variant === "page") {
-    if (titleLength > 140) return "text-2xl md:text-3xl"
-    if (titleLength > 90) return "text-3xl md:text-4xl"
-    return "text-4xl md:text-5xl"
+    if (titleLength > 140) return "text-lg md:text-3xl"
+    if (titleLength > 90) return "text-xl md:text-4xl"
+    return "text-2xl md:text-5xl"
   }
 
   if (titleLength > 140) return "text-xs"
