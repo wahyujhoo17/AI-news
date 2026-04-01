@@ -25,15 +25,17 @@ if (!OPENROUTER_API_KEY) console.error('[ID-WORKER] WARNING: OPENROUTER_API_KEY 
 const ID_FEEDS = [
     // ===== INDONESIA =====
     { id: 'id-001', name: 'Detik News', url: 'https://news.detik.com/rss' },
-    { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss/terkini.rss' },
+    { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss/terkini.rss' },       // was 404 — keep, may recover
     { id: 'id-003', name: 'Tempo', url: 'https://rss.tempo.co/nasional' },
-    { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/get?x.format=rss&x.query=nasional' },
+    { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/berita/nasional' },            // fixed URL
     { id: 'id-005', name: 'CNN Indonesia', url: 'https://www.cnnindonesia.com/rss' },
     { id: 'id-006', name: 'Republika', url: 'https://www.republika.co.id/rss' },
-    { id: 'id-007', name: 'Okezone', url: 'https://news.okezone.com/feed' },
-    { id: 'id-008', name: 'Tribun News', url: 'https://www.tribunnews.com/rss' },
+    { id: 'id-007', name: 'Liputan6', url: 'https://www.liputan6.com/rss/news' },                   // replaced Okezone (XML error)
+    { id: 'id-008', name: 'Tribun News', url: 'https://www.tribunnews.com/rss/nasional' },          // was 403 on /rss, try /rss/nasional
     { id: 'id-009', name: 'Google News ID', url: 'https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id' },
     { id: 'id-010', name: 'Jakarta Post', url: 'https://www.thejakartapost.com/feed' },
+    { id: 'id-011', name: 'Merdeka', url: 'https://www.merdeka.com/feed/' },
+    { id: 'id-012', name: 'Suara', url: 'https://www.suara.com/rss' },
 
     // ===== CRYPTO & BLOCKCHAIN =====
     { id: 'cr-001', name: 'CoinDesk', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/' },
@@ -50,16 +52,16 @@ const ID_FEEDS = [
     { id: 'tc-006', name: 'VentureBeat', url: 'https://venturebeat.com/feed/' },
 
     // ===== BISNIS & EKONOMI GLOBAL =====
-    { id: 'bz-001', name: 'Reuters Business', url: 'https://feeds.reuters.com/reuters/businessNews' },
+    { id: 'bz-001', name: 'Reuters', url: 'https://feeds.reuters.com/reuters/topNews' },            // replaced dead businessNews endpoint
     { id: 'bz-002', name: 'CNBC', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html' },
 
     // ===== OLAHRAGA & SEPAK BOLA =====
     { id: 'sp-001', name: 'Bola.net', url: 'https://www.bola.net/rss/rss.html' },
     { id: 'sp-002', name: 'Bola.com', url: 'https://www.bola.com/rss' },
-    { id: 'sp-003', name: 'Goal Indonesia', url: 'https://www.goal.com/id/news/feed' },
-    { id: 'sp-004', name: 'Liputan6 Bola', url: 'https://www.liputan6.com/rss/bola' },
-    { id: 'sp-005', name: 'Tribun Sport', url: 'https://www.tribunnews.com/rss/sport' },
-    { id: 'sp-006', name: 'ESPN FC', url: 'https://www.espn.com/espn/rss/soccer/news' },
+    { id: 'sp-003', name: 'Tribun Sport', url: 'https://www.tribunnews.com/rss/sport' },
+    { id: 'sp-004', name: 'ESPN FC', url: 'https://www.espn.com/espn/rss/soccer/news' },
+    { id: 'sp-005', name: 'BBC Sport', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml' },
+    { id: 'sp-006', name: 'Sky Sports Football', url: 'https://www.skysports.com/rss/12040' },
 ]
 
 const CRAWL_CONFIG = {
@@ -87,7 +89,8 @@ async function fetchRSS(url) {
 }
 
 async function generateArticleWithOpenRouter(sourceTitle, sourceContent, sourceName) {
-    const prompt = `Kamu adalah jurnalis profesional Indonesia untuk portal berita digital qbitznews.com. Sumber berikut mungkin dalam bahasa Inggris — terjemahkan dan kembangkan sepenuhnya dalam bahasa Indonesia.
+    const prompt = `Kamu adalah jurnalis profesional Indonesia untuk portal berita digital qbitznews.com.
+Sumber berita mungkin dalam bahasa Inggris — WAJIB terjemahkan dan tulis SELURUH artikel dalam bahasa Indonesia.
 
 ---
 JUDUL SUMBER: ${sourceTitle}
@@ -96,13 +99,18 @@ KONTEN SUMBER: ${sourceContent.slice(0, 2500)}
 
 Tulis output PERSIS dalam format berikut (ganti teks dalam kurung siku, jangan tulis kurung sikunya):
 
-[Judul artikel SEO-friendly, 55-90 karakter]
+[Judul artikel dalam BAHASA INDONESIA, SEO-friendly, 55-90 karakter]
 
-IMAGE_HINT: [4-6 kata bahasa Inggris untuk foto Unsplash]
+IMAGE_HINT: [4-6 kata BAHASA INGGRIS untuk foto Unsplash]
 
 CATEGORY: [1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita]
 
-[Isi artikel minimal 700 kata dalam Markdown]
+[Isi artikel minimal 700 kata dalam BAHASA INDONESIA menggunakan Markdown]
+
+ATURAN WAJIB:
+- SELURUH judul dan isi artikel HARUS dalam bahasa Indonesia — DILARANG menulis dalam bahasa Inggris
+- Hanya IMAGE_HINT yang boleh dalam bahasa Inggris
+- Terjemahkan semua istilah teknis ke padanan Indonesia atau beri penjelasan
 
 ATURAN JUDUL:
 - Spesifik: sebut siapa/apa/angka penting
@@ -110,14 +118,13 @@ ATURAN JUDUL:
 - JANGAN mulai dengan: The, A, An, Sebuah, Ini adalah
 - JANGAN sertakan tanggal, sumber, atau label apapun dalam judul
 - Contoh BAIK: "Bitcoin Tembus $100.000 Pertama Kalinya dalam Sejarah"
-- Contoh BURUK: "Perkembangan Bitcoin yang Menarik"
+- Contoh BURUK: "Meta Boosts Code Review Accuracy to 93%"
 
 ATURAN IMAGE_HINT:
 - WAJIB bahasa Inggris (untuk pencarian foto Unsplash)
 - Konsep visual umum, hindari nama orang/kota spesifik
-- Contoh BAIK: "football stadium crowd match", "government parliament meeting"
 
-ATURAN ATURAN ARTIKEL:
+ATURAN ARTIKEL:
 - Gaya jurnalistik profesional, bahasa formal tapi mudah dipahami
 - Sertakan konteks, dampak bagi Indonesia, data/angka jika relevan
 - Gunakan ## untuk sub-judul jika topik membutuhkan struktur
@@ -130,10 +137,10 @@ ATURAN ATURAN ARTIKEL:
             {
                 model: OPENROUTER_MODEL,
                 messages: [
-                    { role: 'system', content: 'Kamu adalah jurnalis profesional Indonesia. Selalu mulai langsung dengan judul. Output hanya Markdown valid. Jangan tambahkan preamble, penjelasan, atau komentar apapun.' },
+                    { role: 'system', content: 'Kamu adalah jurnalis profesional Indonesia. WAJIB menulis SELURUH output dalam bahasa Indonesia, kecuali IMAGE_HINT yang harus dalam bahasa Inggris. Mulai langsung dengan judul bahasa Indonesia. Jangan tambahkan preamble, penjelasan, atau komentar apapun.' },
                     { role: 'user', content: prompt }
                 ],
-                max_tokens: 3500,
+                max_tokens: 2800,
                 temperature: 0.7,
             },
             {
