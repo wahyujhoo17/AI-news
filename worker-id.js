@@ -94,36 +94,35 @@ JUDUL SUMBER: ${sourceTitle}
 KONTEN SUMBER: ${sourceContent.slice(0, 2500)}
 ---
 
-FORMAT OUTPUT (ikuti persis, tanpa tambahan apapun):
-BARIS 1: Judul artikel SEO-friendly (55-90 karakter)
-  - Spesifik: sebut siapa/apa/angka penting
-  - Gunakan kata kerja aktif: Luncurkan, Capai, Catat, Umumkan, Lampaui, dll.
-  - JANGAN mulai dengan: "The", "A", "An", "Sebuah", "Ini adalah"
-  - Contoh BAIK: "Bitcoin Tembus $100.000 Pertama Kalinya dalam Sejarah"
-  - Contoh BURUK: "Perkembangan Bitcoin yang Menarik"
-BARIS 2: (kosong)
-BARIS 3: IMAGE_HINT: 4-6 kata bahasa Inggris untuk foto (contoh: "bitcoin cryptocurrency market chart")
-BARIS 4: (kosong)
-BARIS 5: CATEGORY: 1-2 kategori paling tepat, pisahkan dengan koma jika dua kategori.
-  Pilih HANYA dari daftar ini (tulis persis):
-  Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita
-  - Contoh BAIK: "Olahraga" atau "Teknologi, Ekonomi"
-  - Contoh BURUK: "Sport", "Sepak Bola", "Keuangan"
-BARIS 6: (kosong)
-BARIS 7-dst: Isi artikel (minimal 700 kata) dalam Markdown
-  - Gaya: jurnalistik profesional, bahasa formal tapi mudah dipahami
-  - Sertakan: konteks, dampak bagi Indonesia, data/angka jika relevan
-  - Heading jika topik membutuhkan struktur (## untuk sub-judul)
-  - JANGAN heading generik: "Pendahuluan", "Kesimpulan", "Latar Belakang"
-  - Akhiri dengan paragraf penutup yang kuat
+Tulis output PERSIS dalam format berikut (ganti teks dalam kurung siku, jangan tulis kurung sikunya):
 
-PENTING untuk IMAGE_HINT:
-  - WAJIB dalam bahasa Inggris (digunakan untuk mencari foto di Unsplash)
-  - Hindari nama orang/kota spesifik — gunakan konsep visual yang bisa dicari
-  - Contoh BAIK: "football stadium crowd match", "bitcoin cryptocurrency chart", "government parliament meeting"
-  - Contoh BURUK: "pertandingan sepakbola indonesia", "jakarta berita terkini"
+[Judul artikel SEO-friendly, 55-90 karakter]
 
-Mulai langsung dari BARIS 1 (judul), tanpa preamble, tanpa penjelasan format.`
+IMAGE_HINT: [4-6 kata bahasa Inggris untuk foto Unsplash]
+
+CATEGORY: [1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita]
+
+[Isi artikel minimal 700 kata dalam Markdown]
+
+ATURAN JUDUL:
+- Spesifik: sebut siapa/apa/angka penting
+- Kata kerja aktif: Tembus, Luncurkan, Capai, Catat, Umumkan, Lampaui, Terhenti, Kalahkan
+- JANGAN mulai dengan: The, A, An, Sebuah, Ini adalah
+- JANGAN sertakan tanggal, sumber, atau label apapun dalam judul
+- Contoh BAIK: "Bitcoin Tembus $100.000 Pertama Kalinya dalam Sejarah"
+- Contoh BURUK: "Perkembangan Bitcoin yang Menarik"
+
+ATURAN IMAGE_HINT:
+- WAJIB bahasa Inggris (untuk pencarian foto Unsplash)
+- Konsep visual umum, hindari nama orang/kota spesifik
+- Contoh BAIK: "football stadium crowd match", "government parliament meeting"
+
+ATURAN ATURAN ARTIKEL:
+- Gaya jurnalistik profesional, bahasa formal tapi mudah dipahami
+- Sertakan konteks, dampak bagi Indonesia, data/angka jika relevan
+- Gunakan ## untuk sub-judul jika topik membutuhkan struktur
+- JANGAN heading generik: Pendahuluan, Kesimpulan, Latar Belakang
+- Akhiri dengan paragraf penutup yang kuat`
 
     try {
         const response = await axios.post(
@@ -167,13 +166,23 @@ Mulai langsung dari BARIS 1 (judul), tanpa preamble, tanpa penjelasan format.`
             }
         }
 
-        // Extract title (first non-empty line)
+        // Extract title (first non-empty, non-metadata line)
         let title = ''
         let contentStartIndex = 0
-        for (let i = 0; i < Math.min(rawLines.length, 8); i++) {
+        // Patterns that indicate a line is NOT a title
+        const skipLinePattern = /^(image[_\s-]?hint|category|source|sumber|tanggal|date|by\s|author|baris\s*\d|\d{1,2}\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)|january|february|march|april|may|june|july|august|september|october|november|december)/i
+        const dateOnlyPattern = /^\d{1,2}[\s\/\-]+(\d{1,2}[\s\/\-]+)?\d{2,4}$/
+        for (let i = 0; i < Math.min(rawLines.length, 12); i++) {
             const line = rawLines[i].trim()
             if (!line) continue
-            title = line.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim()
+            if (skipLinePattern.test(line) || dateOnlyPattern.test(line)) { rawLines.splice(i, 1); i--; continue }
+            // Clean any leaked prompt artifacts from title
+            title = line
+                .replace(/^#+\s*/, '')           // markdown heading
+                .replace(/^baris\s*\d+\s*:?\s*/i, '') // BARIS 1: prefix
+                .replace(/^\*\*(.+)\*\*$/, '$1') // **bold**
+                .replace(/\*\*/g, '')             // remaining asterisks
+                .trim()
             contentStartIndex = i + 1
             break
         }
@@ -184,7 +193,14 @@ Mulai langsung dari BARIS 1 (judul), tanpa preamble, tanpa penjelasan format.`
         const bodyLines = rawLines.slice(contentStartIndex)
         while (bodyLines.length > 0 && !bodyLines[0].trim()) bodyLines.shift()
         let content = bodyLines.join('\n').trim()
-        content = content.replace(/^image[_\s-]?hint\s*[:\-][^\n]*/gim, '').replace(/\n{3,}/g, '\n\n').trim()
+        content = content
+            .replace(/^image[_\s-]?hint\s*[:\-][^\n]*/gim, '')
+            .replace(/^category\s*[:\-][^\n]*/gim, '')
+            .replace(/^baris\s*\d+\s*[:\-]?\s*/gim, '')
+            .replace(/^source\s*[:\-][^\n]*/gim, '')
+            .replace(/^sumber\s*[:\-][^\n]*/gim, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim()
 
         // Extract excerpt
         let excerpt = ''
