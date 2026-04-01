@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import HomePageClient from "./HomePageClient"
 import * as db from "@/lib/db"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "AI-Powered News Platform",
   description: "Stay updated with AI-powered global news coverage, real-time analysis, and automatically categorized stories from Qbitz.",

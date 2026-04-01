@@ -94,7 +94,7 @@ Sumber berita mungkin dalam bahasa Inggris — WAJIB terjemahkan dan tulis SELUR
 
 ---
 JUDUL SUMBER: ${sourceTitle}
-KONTEN SUMBER: ${sourceContent.slice(0, 2500)}
+KONTEN SUMBER: ${sourceContent.slice(0, 1800)}
 ---
 
 Tulis output PERSIS dalam format berikut (ganti teks dalam kurung siku, jangan tulis kurung sikunya):
@@ -140,7 +140,7 @@ ATURAN ARTIKEL:
                     { role: 'system', content: 'Kamu adalah jurnalis profesional Indonesia. WAJIB menulis SELURUH output dalam bahasa Indonesia, kecuali IMAGE_HINT yang harus dalam bahasa Inggris. Mulai langsung dengan judul bahasa Indonesia. Jangan tambahkan preamble, penjelasan, atau komentar apapun.' },
                     { role: 'user', content: prompt }
                 ],
-                max_tokens: 2800,
+                max_tokens: 4096,
                 temperature: 0.7,
             },
             {
