@@ -129,8 +129,6 @@ function HeroSection({
             </p>
             <div className="flex items-center gap-3 text-xs text-gray-400">
               <span>{timeAgo(featured.published_at || featured.created_at)}</span>
-              <span>•</span>
-              <span>{featured.source_name}</span>
             </div>
           </div>
         </Link>
