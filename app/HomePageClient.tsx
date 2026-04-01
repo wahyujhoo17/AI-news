@@ -407,21 +407,41 @@ function EmptyState({ search }: { search?: string }) {
 
 // ── Home Content ──────────────────────────────────────────────────────────────
 
-function HomeContent({ language = "en", prefix = "" }: { language?: string; prefix?: string }) {
+interface InitialData {
+  initialArticles?: Article[]
+  initialCategories?: Category[]
+  initialTrending?: Article[]
+  initialHasMore?: boolean
+  initialTotal?: number
+}
+
+function HomeContent({
+  language = "en",
+  prefix = "",
+  initialArticles = [],
+  initialCategories = [],
+  initialTrending = [],
+  initialHasMore = false,
+  initialTotal = 0,
+}: { language?: string; prefix?: string } & InitialData) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const [articles, setArticles] = useState<Article[]>([])
-  const [trendingArticles, setTrendingArticles] = useState<Article[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
+  const hasSSRData = initialArticles.length > 0
+  // Skip the first client-side fetch only when we have SSR data and no category filter in URL
+  const skipFirstFetch = useRef(hasSSRData && !searchParams.get("category"))
+
+  const [articles, setArticles] = useState<Article[]>(initialArticles)
+  const [trendingArticles, setTrendingArticles] = useState<Article[]>(initialTrending)
+  const [categories, setCategories] = useState<Category[]>(initialCategories)
+  const [loading, setLoading] = useState(!hasSSRData)
   const [loadingMore, setLoadingMore] = useState(false)
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "")
   const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(false)
-  const [total, setTotal] = useState(0)
+  const [hasMore, setHasMore] = useState(initialHasMore)
+  const [total, setTotal] = useState(initialTotal)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const isSearchMode = debouncedSearch.trim().length > 0
 
@@ -437,16 +457,22 @@ function HomeContent({ language = "en", prefix = "" }: { language?: string; pref
     return () => clearTimeout(timer)
   }, [search])
 
-  // Fetch trending once on mount
+  // Fetch trending once on mount — skip if SSR already provided it
   useEffect(() => {
+    if (initialTrending.length > 0) return
     fetch("/api/articles/trending?limit=6&language=" + language)
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d.articles)) setTrendingArticles(d.articles) })
       .catch(() => {})
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch main articles when filters change
   useEffect(() => {
+    // First render with SSR data — skip client fetch
+    if (skipFirstFetch.current) {
+      skipFirstFetch.current = false
+      return
+    }
     setLoading(true)
     setPage(1)
     const params = new URLSearchParams({ page: "1", limit: "20", language })
@@ -659,7 +685,15 @@ function HomeContent({ language = "en", prefix = "" }: { language?: string; pref
 
 // ── Root Export ───────────────────────────────────────────────────────────────
 
-export default function HomePageClient({ language = "en", prefix = "" }: { language?: string; prefix?: string }) {
+export default function HomePageClient({
+  language = "en",
+  prefix = "",
+  initialArticles = [],
+  initialCategories = [],
+  initialTrending = [],
+  initialHasMore = false,
+  initialTotal = 0,
+}: { language?: string; prefix?: string } & InitialData) {
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
       <div className="fixed inset-0 z-0">
@@ -669,7 +703,15 @@ export default function HomePageClient({ language = "en", prefix = "" }: { langu
       </div>
       <Navbar />
       <Suspense fallback={<div className="h-screen" />}>
-        <HomeContent language={language} prefix={prefix} />
+        <HomeContent
+          language={language}
+          prefix={prefix}
+          initialArticles={initialArticles}
+          initialCategories={initialCategories}
+          initialTrending={initialTrending}
+          initialHasMore={initialHasMore}
+          initialTotal={initialTotal}
+        />
       </Suspense>
       <Footer />
     </div>
