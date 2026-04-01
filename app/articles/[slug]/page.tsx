@@ -582,6 +582,26 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     }),
   }
 
+  const homeUrl = isId ? `${siteUrl}/id` : siteUrl
+  const homeLabel = isId ? "Beranda" : "Home"
+  const firstCat = article.categories ? article.categories.split(",")[0].trim() : null
+  const firstCatSlug = firstCat
+    ? firstCat.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+    : null
+  const categoryUrl = firstCatSlug ? `${homeUrl}/?category=${firstCatSlug}` : null
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: homeLabel, item: homeUrl },
+      ...(firstCat && categoryUrl
+        ? [{ "@type": "ListItem", position: 2, name: firstCat, item: categoryUrl }]
+        : []),
+      { "@type": "ListItem", position: firstCat ? 3 : 2, name: article.title, item: canonicalUrl },
+    ],
+  }
+
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
       <div className="fixed inset-0 z-0">
@@ -596,8 +616,37 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(newsArticleSchema) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
 
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        {/* Breadcrumb navigation */}
+        <nav aria-label="breadcrumb" className="mb-8">
+          <ol className="flex items-center flex-wrap gap-1.5 text-sm text-gray-500">
+            <li>
+              <Link href={isId ? "/id" : "/"} className="hover:text-cyan-400 transition-colors">
+                {homeLabel}
+              </Link>
+            </li>
+            {firstCat && firstCatSlug && (
+              <>
+                <li className="text-gray-700">›</li>
+                <li>
+                  <Link
+                    href={(isId ? "/id" : "") + "/?category=" + firstCatSlug}
+                    className="hover:text-cyan-400 transition-colors"
+                  >
+                    {firstCat}
+                  </Link>
+                </li>
+              </>
+            )}
+            <li className="text-gray-700">›</li>
+            <li className="text-gray-400 line-clamp-1">{article.title}</li>
+          </ol>
+        </nav>
         <article>
           {article.featured_image && (
             <figure className="mb-10">
@@ -696,19 +745,36 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
               {article.categories && (
                 <div className="flex flex-wrap gap-2">
-                  {article.categories.split(", ").map((cat, i) => (
-                    <span
-                      key={i}
-                      className="px-3 py-1 bg-cyan-500/20 text-cyan-300 text-xs font-semibold rounded-full border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
-                    >
-                      {cat}
-                    </span>
-                  ))}
+                  {article.categories.split(", ").map((cat, i) => {
+                    const catSlug = cat.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+                    return (
+                      <Link
+                        key={i}
+                        href={(isId ? "/id" : "") + "/?category=" + catSlug}
+                        className="px-3 py-1 bg-cyan-500/20 text-cyan-300 text-xs font-semibold rounded-full border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+                      >
+                        {cat}
+                      </Link>
+                    )
+                  })}
                 </div>
               )}
             </div>
           )}
         </article>
+
+        {/* Back to homepage link */}
+        <div className="mt-8 pt-6 border-t border-cyan-500/10">
+          <Link
+            href={isId ? "/id" : "/"}
+            className="inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            {isId ? "← Kembali ke Beranda" : "← Back to Home"}
+          </Link>
+        </div>
 
         {recommendedReadingArticles.length > 0 && (
           <div className="mt-10 pt-12 border-t border-cyan-500/20">
