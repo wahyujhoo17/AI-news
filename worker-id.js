@@ -104,7 +104,13 @@ BARIS 1: Judul artikel SEO-friendly (55-90 karakter)
 BARIS 2: (kosong)
 BARIS 3: IMAGE_HINT: 4-6 kata bahasa Inggris untuk foto (contoh: "bitcoin cryptocurrency market chart")
 BARIS 4: (kosong)
-BARIS 5-dst: Isi artikel (minimal 700 kata) dalam Markdown
+BARIS 5: CATEGORY: 1-2 kategori paling tepat, pisahkan dengan koma jika dua kategori.
+  Pilih HANYA dari daftar ini (tulis persis):
+  Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita
+  - Contoh BAIK: "Olahraga" atau "Teknologi, Ekonomi"
+  - Contoh BURUK: "Sport", "Sepak Bola", "Keuangan"
+BARIS 6: (kosong)
+BARIS 7-dst: Isi artikel (minimal 700 kata) dalam Markdown
   - Gaya: jurnalistik profesional, bahasa formal tapi mudah dipahami
   - Sertakan: konteks, dampak bagi Indonesia, data/angka jika relevan
   - Heading jika topik membutuhkan struktur (## untuk sub-judul)
@@ -145,12 +151,20 @@ Mulai langsung dari BARIS 1 (judul), tanpa preamble, tanpa penjelasan format.`
         const fullContent = response.data?.choices?.[0]?.message?.content || ''
         if (!fullContent) throw new Error('Empty content from OpenRouter')
 
-        // Parse IMAGE_HINT
+        // Parse IMAGE_HINT and CATEGORY
         let aiImageHint = ''
+        let aiCategories = []
+        const VALID_CATEGORIES = new Set(['Kripto & Blockchain', 'Teknologi', 'Politik', 'Ekonomi', 'Olahraga', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Hukum & Kriminal', 'Lingkungan', 'Berita'])
         const rawLines = fullContent.split('\n')
-        for (let i = 0; i < Math.min(rawLines.length, 12); i++) {
-            const match = rawLines[i].trim().match(/^image[_\s-]?hint\s*[:\-]\s*(.+)$/i)
-            if (match) { aiImageHint = match[1].trim(); rawLines.splice(i, 1); break }
+        for (let i = rawLines.length - 1; i >= 0; i--) {
+            const line = rawLines[i].trim()
+            const imgMatch = line.match(/^image[_\s-]?hint\s*[:\-]\s*(.+)$/i)
+            if (imgMatch) { aiImageHint = imgMatch[1].trim(); rawLines.splice(i, 1); continue }
+            const catMatch = line.match(/^category\s*[:\-]\s*(.+)$/i)
+            if (catMatch) {
+                aiCategories = catMatch[1].split(',').map(c => c.trim()).filter(c => VALID_CATEGORIES.has(c))
+                rawLines.splice(i, 1)
+            }
         }
 
         // Extract title (first non-empty line)
@@ -190,6 +204,7 @@ Mulai langsung dari BARIS 1 (judul), tanpa preamble, tanpa penjelasan format.`
             content,
             excerpt,
             image_hint: aiImageHint || title.split(' ').slice(0, 5).join(' '),
+            categories: aiCategories,
             tokens: { prompt: usage.prompt_tokens || 0, completion: usage.completion_tokens || 0, total: usage.total_tokens || 0 },
             cost: (usage.total_tokens || 0) * 0.00000015,
             model: OPENROUTER_MODEL,
@@ -395,6 +410,78 @@ async function ensureCategoriesForArticle(articleId, categoryNames) {
     }
 }
 
+// ============================================
+// PROMOTIONAL CONTENT FILTER
+// ============================================
+
+const PROMO_BRANDS = new Set([
+    'bca', 'bank central asia', 'bri', 'bank rakyat', 'bni', 'bank negara', 'mandiri', 'bank mandiri',
+    'cimb niaga', 'danamon', 'ocbc', 'panin', 'btpn', 'bank mega', 'maybank', 'permata',
+    'bsi', 'bank syariah', 'btn', 'bank tabungan', 'bjb',
+    'telkom', 'telkomsel', 'indosat', 'xl axiata', 'smartfren', 'tri indonesia',
+    'pertamina', 'pln', 'garuda indonesia', 'pos indonesia', 'krakatau steel', 'semen indonesia',
+    'pupuk indonesia', 'hutama karya', 'waskita', 'adhi karya', 'wijaya karya',
+    'indomaret', 'alfamart', 'transmart', 'hypermart',
+    'indofood', 'unilever', 'wings', 'sido muncul', 'kalbe farma', 'kimia farma',
+    'gojek', 'tokopedia', 'shopee', 'lazada', 'bukalapak', 'traveloka',
+    'ovo', 'dana', 'gopay', 'linkaja', 'jenius',
+    'astra', 'toyota astra', 'honda prospect', 'suzuki indomobil',
+    'sinar mas', 'ciputra', 'summarecon', 'bumi serpong', 'pakuwon',
+    'sampoerna', 'gudang garam', 'djarum', 'bentoel',
+    'prudential', 'axa', 'allianz', 'jiwasraya', 'jasindo',
+])
+
+const PROMO_TITLE_PATTERNS = [
+    /\b(luncurkan|meluncurkan|hadirkan|menghadirkan|perkenalkan)\s+(program|produk|layanan|fitur|aplikasi|solusi)\b/i,
+    /\bprogram\s+\w+\s+(berbakti|peduli|berdaya|bersama|untuk negeri|untuk indonesia)\b/i,
+    /\b(sponsori|dukung|gandeng)\b.{0,50}\b(event|festival|turnamen|konser|program)\b/i,
+    /\b(raih|sabet)\s+penghargaan.{0,40}(terbaik|terpercaya|nomor\s*1|no\.?\s*1)\b/i,
+    /\b(tanda\s*tangani|sepakati)\s+(mou|pks|nota\s*kesepahaman)\b/i,
+    /\bgelar\s+\w+\s+(festival|expo|pameran|roadshow|bazar)\b/i,
+    /\bhut\s+ke-?\d+\b/i,
+    /\banniversary\s+ke-?\d+\b/i,
+]
+
+/**
+ * Mengembalikan { isPromo: boolean, reason: string }
+ */
+function detectPromotionalContent(title, content = '') {
+    const titleLower = title.toLowerCase()
+    const textLower = (title + ' ' + content).toLowerCase()
+
+    // Brand ada di judul + pola promosi di judul → langsung tolak
+    for (const brand of PROMO_BRANDS) {
+        if (titleLower.includes(brand)) {
+            for (const pat of PROMO_TITLE_PATTERNS) {
+                if (pat.test(title)) return { isPromo: true, reason: `Brand "${brand}" + pola promosi di judul` }
+            }
+            // CSR / program sosial langsung
+            if (/\b(csr|berbakti|desa binaan|komunitas binaan|program binaan|beasiswa)\b/i.test(title)) {
+                return { isPromo: true, reason: `Brand "${brand}" + CSR/beasiswa di judul` }
+            }
+        }
+    }
+
+    // Pola promosi kuat di judul (tanpa perlu cek brand)
+    for (const pat of PROMO_TITLE_PATTERNS) {
+        if (pat.test(title)) return { isPromo: true, reason: `Pola promosi di judul: "${title.slice(0, 60)}"` }
+    }
+
+    // Cek body — skor kumulatif
+    if (content.length > 100) {
+        let score = 0
+        for (const brand of PROMO_BRANDS) { if (textLower.includes(brand)) score += 3 }
+        const promoKw = ['csr', 'corporate social responsibility', 'advertorial', 'sponsored', 'desa wisata binaan',
+            'desa binaan', 'program binaan', 'hari ulang tahun ke-', 'produk unggulan', 'layanan terbaik kami', 'hubungi kami']
+        promoKw.forEach(kw => { if (textLower.includes(kw)) score += 2 })
+        for (const pat of PROMO_TITLE_PATTERNS) { if (pat.test(textLower)) score += 4 }
+        if (score >= 8) return { isPromo: true, reason: `Skor promosi tinggi (${score}) di body` }
+    }
+
+    return { isPromo: false, reason: '' }
+}
+
+// Fallback keyword-based — dipakai jika AI tidak mengembalikan kategori valid
 function detectCategories(title, content) {
     const text = (title + ' ' + content).toLowerCase()
     const map = [
@@ -458,6 +545,13 @@ async function crawlIndonesian() {
             const dupTitle = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(title))=LOWER(TRIM($1)) LIMIT 1", [item.title])
             if (dupTitle.rows.length > 0) { console.log(`[ID-WORKER] Skip dup title: ${item.title.slice(0, 50)}`); continue }
 
+            // Filter promosi — cek source title SEBELUM panggil AI (hemat token)
+            const prePromo = detectPromotionalContent(item.title, item.content)
+            if (prePromo.isPromo) {
+                console.log(`[ID-WORKER] Skip promosi (pre-AI): ${prePromo.reason}`)
+                continue
+            }
+
             try {
                 console.log(`[ID-WORKER] → Generating: "${item.title.slice(0, 60)}"`)
                 const generated = await generateArticleWithOpenRouter(item.title, item.content, feed.name)
@@ -466,8 +560,18 @@ async function crawlIndonesian() {
                 const dupGen = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(title))=LOWER(TRIM($1)) LIMIT 1", [generated.title])
                 if (dupGen.rows.length > 0) { console.log(`[ID-WORKER] Skip dup generated: ${generated.title.slice(0, 50)}`); continue }
 
-                // Detect categories early so image search can use them
-                const categories = detectCategories(generated.title, generated.content)
+                // Filter promosi — cek hasil AI (AI bisa mengubah framing)
+                const postPromo = detectPromotionalContent(generated.title, generated.content)
+                if (postPromo.isPromo) {
+                    console.log(`[ID-WORKER] Skip promosi (post-AI): ${postPromo.reason}`)
+                    continue
+                }
+
+                // Kategori dari AI, fallback ke keyword-based jika AI tidak mengembalikan valid
+                const categories = generated.categories && generated.categories.length > 0
+                    ? generated.categories
+                    : detectCategories(generated.title, generated.content)
+                console.log(`[ID-WORKER] Kategori: [${categories.join(', ')}] (${generated.categories?.length > 0 ? 'AI' : 'fallback'})`)
 
                 // Fetch image with full context for better relevance
                 const imageUrl = await fetchImageFromUnsplash({
