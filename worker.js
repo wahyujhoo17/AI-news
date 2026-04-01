@@ -1125,8 +1125,8 @@ async function processSource(source, options = {}) {
 
       const saved = await pool.query(
         `INSERT INTO articles 
-         (title, content, source_url, source_name, published_at, is_published, ai_model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, excerpt, author, featured_image)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+         (title, content, source_url, source_name, published_at, is_published, ai_model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, excerpt, author, featured_image, language)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
         [
           generated.title,
           generated.content,
@@ -1141,7 +1141,8 @@ async function processSource(source, options = {}) {
           generated.cost,
           generated.excerpt,
           generated.author,
-          uniqueFeaturedImage
+          uniqueFeaturedImage,
+          'en'
         ]
       )
 

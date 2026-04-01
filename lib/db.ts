@@ -223,15 +223,20 @@ export async function getArticleBySlug(slug: string) {
 
 export async function getAllCategories(language?: string) {
   if (language) {
+    // For 'en', include articles where language IS NULL (legacy global articles) OR language = 'en'
+    const langCondition = language === 'en'
+      ? `(a.language IS NULL OR a.language = 'en')`
+      : `a.language = $1`
+    const params = language === 'en' ? [] : [language]
     const result = await pool.query<Category & { article_count?: number }>(
       `SELECT c.*, COUNT(DISTINCT a.id)::int AS article_count
        FROM categories c
        LEFT JOIN article_categories ac ON c.id = ac.category_id
-       LEFT JOIN articles a ON ac.article_id = a.id AND a.is_published = true AND a.language = $1
+       LEFT JOIN articles a ON ac.article_id = a.id AND a.is_published = true AND ${langCondition}
        GROUP BY c.id
        HAVING COUNT(DISTINCT a.id) > 0
        ORDER BY COUNT(DISTINCT a.id) DESC, c.name`,
-      [language]
+      params
     )
     return result.rows
   }

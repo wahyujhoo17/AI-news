@@ -41,7 +41,7 @@ export default function CategoriesPageClient() {
 
   // Load categories once on mount (with accurate article counts from DB)
   useEffect(() => {
-    fetch("/api/categories")
+    fetch("/api/categories?language=en")
       .then((res) => res.json())
       .then((data) => {
         const sorted: Category[] = (Array.isArray(data.categories) ? data.categories : [])
