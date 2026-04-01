@@ -51,7 +51,7 @@ function catColor(article: Article, categories: Category[]): string {
 
 // ── Trending Ticker ───────────────────────────────────────────────────────────
 
-function TrendingTicker({ articles }: { articles: Article[] }) {
+function TrendingTicker({ articles, prefix }: { articles: Article[]; prefix: string }) {
   if (!articles.length) return null
   return (
     <div className="bg-black/70 border-b border-red-500/20 backdrop-blur-sm">
@@ -63,7 +63,7 @@ function TrendingTicker({ articles }: { articles: Article[] }) {
           {articles.map((a, i) => (
             <Link
               key={a.id}
-              href={buildArticlePath(a.id, a.title)}
+              href={prefix + buildArticlePath(a.id, a.title)}
               className="text-sm text-gray-300 hover:text-cyan-300 transition-colors flex-shrink-0"
             >
               <span className="text-red-400 font-bold mr-1.5">{i + 1}.</span>
@@ -82,10 +82,12 @@ function HeroSection({
   featured,
   secondary,
   categories,
+  prefix,
 }: {
   featured: Article
   secondary: Article[]
   categories: Category[]
+  prefix: string
 }) {
   const color = catColor(featured, categories)
   return (
@@ -93,7 +95,7 @@ function HeroSection({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Big featured card */}
         <Link
-          href={buildArticlePath(featured.id, featured.title)}
+          href={prefix + buildArticlePath(featured.id, featured.title)}
           className="lg:col-span-2 group relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-black/40 hover:border-cyan-400/50 transition-all duration-300 min-h-[300px] lg:min-h-[420px] flex"
         >
           {featured.featured_image ? (
@@ -138,7 +140,7 @@ function HeroSection({
           {secondary.slice(0, 4).map((article) => (
             <Link
               key={article.id}
-              href={buildArticlePath(article.id, article.title)}
+              href={prefix + buildArticlePath(article.id, article.title)}
               className="group flex-shrink-0 w-72 lg:w-auto flex gap-3 p-3 rounded-xl border border-cyan-500/20 bg-black/40 hover:border-cyan-400/50 hover:bg-black/60 transition-all duration-200 lg:flex-1"
             >
               {article.featured_image && (
@@ -174,11 +176,11 @@ function HeroSection({
 
 // ── Article Card ──────────────────────────────────────────────────────────────
 
-function ArticleCard({ article, categories }: { article: Article; categories: Category[] }) {
+function ArticleCard({ article, categories, prefix }: { article: Article; categories: Category[]; prefix: string }) {
   const color = catColor(article, categories)
   return (
     <Link
-      href={buildArticlePath(article.id, article.title)}
+      href={prefix + buildArticlePath(article.id, article.title)}
       className="group flex flex-col rounded-xl border border-cyan-500/20 bg-black/40 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10 overflow-hidden"
     >
       <div className="relative h-44 bg-gradient-to-br from-slate-900 via-blue-900/40 to-slate-950 overflow-hidden flex-shrink-0">
@@ -242,7 +244,7 @@ function ArticleCard({ article, categories }: { article: Article; categories: Ca
 
 // ── Trending Sidebar ──────────────────────────────────────────────────────────
 
-function TrendingSidebar({ articles }: { articles: Article[] }) {
+function TrendingSidebar({ articles, prefix }: { articles: Article[]; prefix: string }) {
   if (!articles.length) return null
   return (
     <div className="rounded-xl border border-orange-500/30 bg-black/40 backdrop-blur-sm overflow-hidden">
@@ -254,7 +256,7 @@ function TrendingSidebar({ articles }: { articles: Article[] }) {
         {articles.map((article, i) => (
           <Link
             key={article.id}
-            href={buildArticlePath(article.id, article.title)}
+            href={prefix + buildArticlePath(article.id, article.title)}
             className="group flex gap-3 p-3 hover:bg-white/5 transition-colors"
           >
             <span className="text-2xl font-black text-gray-700 group-hover:text-orange-400 transition-colors w-7 flex-shrink-0 leading-tight mt-0.5">
@@ -277,7 +279,7 @@ function TrendingSidebar({ articles }: { articles: Article[] }) {
 
 // ── Categories Sidebar ────────────────────────────────────────────────────────
 
-function CategoriesSidebar({ categories }: { categories: Category[] }) {
+function CategoriesSidebar({ categories, prefix }: { categories: Category[]; prefix: string }) {
   if (!categories.length) return null
   return (
     <div className="rounded-xl border border-cyan-500/20 bg-black/40 backdrop-blur-sm overflow-hidden">
@@ -289,7 +291,7 @@ function CategoriesSidebar({ categories }: { categories: Category[] }) {
         {categories.slice(0, 14).map((cat) => (
           <Link
             key={cat.id}
-            href={"/?category=" + cat.slug}
+            href={prefix + "/?category=" + cat.slug}
             className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-700/50 bg-gray-800/50 hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all duration-200"
           >
             <span
@@ -307,7 +309,7 @@ function CategoriesSidebar({ categories }: { categories: Category[] }) {
           </Link>
         ))}
         <Link
-          href="/categories"
+          href={prefix + "/categories"}
           className="px-3 py-1.5 rounded-full border border-cyan-500/30 text-xs text-cyan-400 hover:bg-cyan-500/10 transition-all"
         >
           View all →
@@ -407,7 +409,7 @@ function EmptyState({ search }: { search?: string }) {
 
 // ── Home Content ──────────────────────────────────────────────────────────────
 
-function HomeContent() {
+function HomeContent({ language = "en", prefix = "" }: { language?: string; prefix?: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -439,7 +441,7 @@ function HomeContent() {
 
   // Fetch trending once on mount
   useEffect(() => {
-    fetch("/api/articles/trending?limit=6")
+    fetch("/api/articles/trending?limit=6&language=" + language)
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d.articles)) setTrendingArticles(d.articles) })
       .catch(() => {})
@@ -449,7 +451,7 @@ function HomeContent() {
   useEffect(() => {
     setLoading(true)
     setPage(1)
-    const params = new URLSearchParams({ page: "1", limit: "20" })
+    const params = new URLSearchParams({ page: "1", limit: "20", language })
     if (selectedCategory && !isSearchMode) params.append("category", selectedCategory)
     if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim())
 
@@ -471,7 +473,7 @@ function HomeContent() {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
     const nextPage = page + 1
-    const params = new URLSearchParams({ page: String(nextPage), limit: "20" })
+    const params = new URLSearchParams({ page: String(nextPage), limit: "20", language })
     if (selectedCategory && !isSearchMode) params.append("category", selectedCategory)
     if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim())
 
@@ -489,7 +491,7 @@ function HomeContent() {
     setSelectedCategory(slug)
     setSearch("")
     setDebouncedSearch("")
-    router.push(slug ? "/?category=" + slug : "/")
+    router.push(slug ? prefix + "/?category=" + slug : prefix + "/")
   }
 
   // Layout slicing — featured card only shows articles that have an image
@@ -501,7 +503,7 @@ function HomeContent() {
 
   return (
     <>
-      <TrendingTicker articles={trendingArticles} />
+      <TrendingTicker articles={trendingArticles} prefix={prefix} />
 
       {/* Category filter bar */}
       <div className="relative z-40 backdrop-blur-sm bg-black/30 border-b border-cyan-500/20">
@@ -581,7 +583,7 @@ function HomeContent() {
               {articles.map((article) => (
                 <Link
                   key={article.id}
-                  href={buildArticlePath(article.id, article.title)}
+                  href={prefix + buildArticlePath(article.id, article.title)}
                   className="group flex gap-4 rounded-xl border border-cyan-500/20 bg-black/40 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-300 p-4"
                 >
                   {article.featured_image && (
@@ -602,7 +604,7 @@ function HomeContent() {
           </>
         ) : (
           <>
-            {featured && <HeroSection featured={featured} secondary={heroSecondary} categories={categories} />}
+            {featured && <HeroSection featured={featured} secondary={heroSecondary} categories={categories} prefix={prefix} />}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2">
@@ -616,7 +618,7 @@ function HomeContent() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   {gridArticles.map((article) => (
-                    <ArticleCard key={article.id} article={article} categories={categories} />
+                    <ArticleCard key={article.id} article={article} categories={categories} prefix={prefix} />
                   ))}
                 </div>
 
@@ -636,15 +638,18 @@ function HomeContent() {
                 )}
 
                 {hasMore && !loadingMore && (
-                  <div className="mt-8">
+                  <div className="mt-8 space-y-8">
                     <LoadMoreButton loading={loadingMore} onClick={loadMore} />
                   </div>
                 )}
               </div>
 
-              <div className="lg:col-span-1 space-y-6">
-                <TrendingSidebar articles={trendingArticles} />
-                <CategoriesSidebar categories={categories} />
+              <div className="lg:col-span-1">
+                <div className="sticky top-4 space-y-6">
+                  <TrendingSidebar articles={trendingArticles} prefix={prefix} />
+
+                  <CategoriesSidebar categories={categories} prefix={prefix} />
+                </div>
               </div>
             </div>
           </>
@@ -656,7 +661,7 @@ function HomeContent() {
 
 // ── Root Export ───────────────────────────────────────────────────────────────
 
-export default function HomePageClient() {
+export default function HomePageClient({ language = "en", prefix = "" }: { language?: string; prefix?: string }) {
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
       <div className="fixed inset-0 z-0">
@@ -666,7 +671,7 @@ export default function HomePageClient() {
       </div>
       <Navbar />
       <Suspense fallback={<div className="h-screen" />}>
-        <HomeContent />
+        <HomeContent language={language} prefix={prefix} />
       </Suspense>
       <Footer />
     </div>
