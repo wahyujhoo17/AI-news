@@ -122,7 +122,10 @@ ATURAN JUDUL:
 
 ATURAN IMAGE_HINT:
 - WAJIB bahasa Inggris (untuk pencarian foto Unsplash)
-- Konsep visual umum, hindari nama orang/kota spesifik
+- Gunakan benda/tempat/aktivitas yang TERLIHAT secara visual, BUKAN konsep abstrak
+- Contoh BAIK: "government building official ceremony", "courtroom judge gavel", "football stadium match crowd", "bitcoin cryptocurrency trading screen", "hospital doctor patient examination"
+- Contoh BURUK: "remote office teamwork", "peaceful reconciliation", "national issue", "leadership challenge"
+- Sesuaikan dengan topik artikel: korupsi → "courtroom justice gavel", olahraga → jenis olahraga spesifik, teknologi → perangkat spesifik
 
 ATURAN ARTIKEL:
 - Gaya jurnalistik profesional, bahasa formal tapi mudah dipahami
@@ -369,9 +372,13 @@ async function fetchImageFromUnsplash(context) {
                 return { url: r.urls?.regular, score }
             }).sort((a, b) => b.score - a.score)
 
-            if (scored[0]?.url && scored[0].score >= 0) {
+            // Only accept result if score is high enough to indicate relevance
+            const MIN_SCORE = 8
+            if (scored[0]?.url && scored[0].score >= MIN_SCORE) {
                 console.log(`[ID-WORKER] Image: query="${query}" score=${scored[0].score.toFixed(1)}`)
                 return scored[0].url
+            } else if (scored[0]?.url) {
+                console.log(`[ID-WORKER] Image score too low (${scored[0].score.toFixed(1)}) for query="${query}" — trying next query`)
             }
         } catch (err) {
             console.error('[ID-WORKER] Unsplash error:', err.message)
