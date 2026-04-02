@@ -73,13 +73,14 @@ class GroqKeyManager {
     }
   }
 
-  recordFailure(key, errorType) {
+  recordFailure(key, errorType, cooldownMs) {
     if (this.keyStats[key]) {
       this.keyStats[key].failures++;
       // Set cooldown if it's a rate limit error
       if (errorType === 'rate_limit_exceeded') {
-        this.cooldownTimes[key] = Date.now() + this.DEFAULT_COOLDOWN_MS;
-        console.warn();
+        const cd = cooldownMs ?? this.DEFAULT_COOLDOWN_MS;
+        this.cooldownTimes[key] = Date.now() + cd;
+        console.warn(`[GROQ] Key ...${key.slice(-6)} rate-limited, cooldown ${Math.round(cd / 1000)}s until ${new Date(Date.now() + cd).toISOString()}`);
       }
     }
   }
@@ -624,7 +625,7 @@ async function fetchHTML(url, selector = 'article') {
   }
 }
 
-async function generateArticle(title, sourceContent, sourceUrl) {
+async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
   // Groq-only (no fallback)
   const groqKey = groqManager.getNextKey()
   const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
@@ -897,8 +898,31 @@ Begin:`
       model: groqModel,
       format: 'markdown'
     }
+    groqManager.recordSuccess(groqKey)
   } catch (err) {
-    console.error('Groq API error:', err.response?.data || err.message)
+    const status = err.response?.status
+    const errData = err.response?.data
+    const errCode = errData?.error?.code || errData?.error?.type || ''
+    if (status === 429 || errCode === 'rate_limit_exceeded') {
+      // Parse retry-after duration from Groq error message
+      const msg = errData?.error?.message || ''
+      let cooldownMs = groqManager.DEFAULT_COOLDOWN_MS
+      const retryMatch = msg.match(/try again in (?:(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:([\d.]+)s)?)/i)
+      if (retryMatch) {
+        const h = parseFloat(retryMatch[1] || 0)
+        const m = parseFloat(retryMatch[2] || 0)
+        const s = parseFloat(retryMatch[3] || 0)
+        cooldownMs = Math.ceil((h * 3600 + m * 60 + s) * 1000) + 5000 // +5s buffer
+      }
+      groqManager.recordFailure(groqKey, 'rate_limit_exceeded', cooldownMs)
+      const maxAttempts = groqManager.keys.length
+      if (_attempt < maxAttempts - 1) {
+        console.warn(`[GROQ] Rate limited (attempt ${_attempt + 1}/${maxAttempts}). Retrying with next key...`)
+        return generateArticle(title, sourceContent, sourceUrl, _attempt + 1)
+      }
+      console.error(`[GROQ] All ${maxAttempts} keys rate-limited. Giving up on: "${title.slice(0, 50)}"`)
+    }
+    console.error('Groq API error:', errData || err.message)
     throw err
   }
 }
@@ -924,8 +948,8 @@ function detectCategory(title, content) {
 }
 
 async function classifyArticleWithAI(title, excerpt) {
+  const groqKey = groqManager.getNextKey()
   try {
-    const groqKey = groqManager.getNextKey()
     const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
 
     // More strict prompt that forces output format
@@ -993,6 +1017,21 @@ Your output:`
     }
     return categoryList
   } catch (error) {
+    const status = error.response?.status
+    const errData = error.response?.data
+    const errCode = errData?.error?.code || errData?.error?.type || ''
+    if (status === 429 || errCode === 'rate_limit_exceeded') {
+      const msg = errData?.error?.message || ''
+      let cooldownMs = groqManager.DEFAULT_COOLDOWN_MS
+      const retryMatch = msg.match(/try again in (?:(?:(\d+)h\s*)?(?:(\d+)m\s*)?(?:([\d.]+)s)?)/i)
+      if (retryMatch) {
+        const h = parseFloat(retryMatch[1] || 0)
+        const m = parseFloat(retryMatch[2] || 0)
+        const s = parseFloat(retryMatch[3] || 0)
+        cooldownMs = Math.ceil((h * 3600 + m * 60 + s) * 1000) + 5000
+      }
+      groqManager.recordFailure(groqKey, 'rate_limit_exceeded', cooldownMs)
+    }
     console.error("AI Classification error:", error.message)
     return [] // Return empty array, fallback to keyword categories
   }
