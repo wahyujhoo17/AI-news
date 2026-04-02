@@ -9,6 +9,7 @@ require('dotenv').config()
 const cron = require('node-cron')
 const axios = require('axios')
 const Parser = require('rss-parser')
+const cheerio = require('cheerio')
 const { pool } = require('./lib/db-worker')
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY
@@ -81,6 +82,7 @@ async function fetchRSS(url) {
             content: item.contentSnippet || item.content || item.description || '',
             link: item.link || '',
             pubDate: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+            sourceImage: extractImageFromFeedItem(item),
         }))
     } catch (error) {
         console.error(`[ID-WORKER] RSS fetch error (${url.slice(0, 60)}): ${error.message}`)
@@ -248,6 +250,86 @@ ATURAN ARTIKEL:
 // ============================================
 // IMAGE HELPERS (ported & adapted from worker.js)
 // ============================================
+
+// ── Source image extraction ──────────────────────────────────────────────────
+
+function normalizeImageUrl(url, baseUrl = '') {
+    if (!url || typeof url !== 'string') return null
+    if (url.startsWith('data:')) return null
+    try { return new URL(url, baseUrl).href } catch { return null }
+}
+
+const BLOCKED_IMAGE_HOSTS = new Set(['news.google.com', 'www.gstatic.com'])
+const BLOCKED_IMAGE_PATTERNS = [
+    'logo', 'icon', '/icons/', 'avatar', 'sprite', 'placeholder',
+    'favicon', 'advert', 'banner', 'app-image', 'brand-image',
+    '/app/', 'touch-icon', 'apple-touch', 'badge', 'watermark',
+]
+
+function isLikelyUsableImage(url) {
+    if (!url) return false
+    const lowerUrl = url.toLowerCase()
+    if (lowerUrl.endsWith('.ico') || lowerUrl.endsWith('.svg')) return false
+    if (BLOCKED_IMAGE_PATTERNS.some(p => lowerUrl.includes(p))) return false
+    try {
+        const host = new URL(url).hostname.toLowerCase()
+        if (BLOCKED_IMAGE_HOSTS.has(host)) return false
+    } catch { }
+    return true
+}
+
+function extractImageFromFeedItem(item) {
+    if (!item) return null
+    const directCandidates = [
+        item.enclosure?.url,
+        item.image?.url,
+        item.thumbnail,
+        item['media:thumbnail']?.url,
+        item['media:content']?.url,
+        Array.isArray(item['media:content']) ? item['media:content'][0]?.url : null,
+    ]
+    for (const candidate of directCandidates) {
+        const normalized = normalizeImageUrl(candidate)
+        if (isLikelyUsableImage(normalized)) return normalized
+    }
+    const htmlSources = [item.content, item['content:encoded'], item.summary].filter(Boolean).join(' ')
+    const imgMatch = htmlSources.match(/<img[^>]+src=["']([^"']+)["']/i)
+    if (!imgMatch) return null
+    const normalized = normalizeImageUrl(imgMatch[1])
+    return isLikelyUsableImage(normalized) ? normalized : null
+}
+
+async function fetchSourceImage(sourceUrl) {
+    if (!sourceUrl) return null
+    try {
+        const response = await axios.get(sourceUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 10000,
+            maxRedirects: 5,
+        })
+        const $ = cheerio.load(response.data)
+        const candidates = [
+            $('meta[property="og:image:secure_url"]').attr('content'),
+            $('meta[property="og:image"]').attr('content'),
+            $('meta[name="twitter:image:src"]').attr('content'),
+            $('meta[name="twitter:image"]').attr('content'),
+            $('article img').first().attr('src'),
+            $('main img').first().attr('src'),
+        ]
+        for (const candidate of candidates) {
+            const normalized = normalizeImageUrl(candidate, sourceUrl)
+            if (isLikelyUsableImage(normalized)) {
+                console.log(`[ID-WORKER] Source page image: ${normalized.slice(0, 80)}`)
+                return normalized
+            }
+        }
+    } catch (err) {
+        console.log(`[ID-WORKER] Source image lookup failed: ${err.message}`)
+    }
+    return null
+}
+
+
 const IMAGE_STOP_WORDS = new Set([
     'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'by', 'for', 'from', 'is', 'are', 'was', 'were',
     'be', 'been', 'being', 'with', 'that', 'this', 'these', 'those', 'into', 'onto', 'about', 'after', 'before',
@@ -603,13 +685,16 @@ async function crawlIndonesian() {
                     : detectCategories(generated.title, generated.content)
                 console.log(`[ID-WORKER] Kategori: [${categories.join(', ')}] (${generated.categories?.length > 0 ? 'AI' : 'fallback'})`)
 
-                // Fetch image with full context for better relevance
-                const imageUrl = await fetchImageFromUnsplash({
-                    imageHint: generated.image_hint,
-                    title: generated.title,
-                    excerpt: generated.excerpt,
-                    categories,
-                })
+                // Fetch image: 1) RSS feed image → 2) og:image from source page → 3) Unsplash fallback
+                const imageUrl =
+                    item.sourceImage ||
+                    await fetchSourceImage(item.link) ||
+                    await fetchImageFromUnsplash({
+                        imageHint: generated.image_hint,
+                        title: generated.title,
+                        excerpt: generated.excerpt,
+                        categories,
+                    })
 
                 // Save
                 const saved = await saveArticleId({

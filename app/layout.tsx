@@ -113,10 +113,9 @@ export default function RootLayout({
         `}</style>
       </head>
       <body className="bg-black text-white antialiased">
-        {/* Monetag Multitag / Popunder */}
-        <script src="https://quge5.com/88/tag.min.js" data-zone="225633" async data-cfasync="false" />
-        {/* Monetag In-Page Push */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(s){s.dataset.zone='10818984',s.src='https://nap5k.com/tag.min.js'})([document.documentElement,document.body].filter(Boolean).pop().appendChild(document.createElement('script')))` }} />
+        {/* Monetag — dinonaktifkan sementara selama review AdSense */}
+        {/* <script src="https://quge5.com/88/tag.min.js" data-zone="225633" async data-cfasync="false" /> */}
+        {/* <script dangerouslySetInnerHTML={{ __html: `(function(s){s.dataset.zone='10818984',s.src='https://nap5k.com/tag.min.js'})([document.documentElement,document.body].filter(Boolean).pop().appendChild(document.createElement('script')))` }} /> */}
         {children}
       </body>
     </html>

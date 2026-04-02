@@ -929,6 +929,24 @@ Begin:`
 
 function detectCategory(title, content) {
   const text = (title + ' ' + content).toLowerCase()
+
+  // Priority keywords: checked first — if matched, skip business/others to prevent false positives
+  const priorityKeywords = {
+    'world': [
+      'earthquake', 'tsunami', 'hurricane', 'tornado', 'typhoon', 'cyclone',
+      'flood', 'flooding', 'wildfire', 'volcano', 'eruption', 'avalanche',
+      'disaster', 'fatality', 'fatalities', 'casualties', 'death toll',
+      'magnitude', 'richter', 'seismic', 'tremor', 'aftershock',
+      'war', 'conflict', 'invasion', 'bombing', 'airstrike', 'missile',
+      'shooting', 'explosion', 'attack', 'massacre', 'famine', 'refugee',
+      'humanitarian', 'ceasefire', 'troops', 'military operation'
+    ],
+    'environment': [
+      'climate change', 'global warming', 'carbon', 'emission', 'pollution',
+      'deforestation', 'biodiversity', 'extinction', 'glacier', 'sea level'
+    ]
+  }
+
   const keywords = {
     'technology': ['technology', 'tech', 'digital', 'ai', 'software', 'app', 'code', 'programming', 'cyber', 'internet', 'data'],
     'business': ['business', 'market', 'trade', 'commerce', 'company', 'corporate', 'economy', 'finance', 'stock', 'investor'],
@@ -939,11 +957,24 @@ function detectCategory(title, content) {
   }
 
   const categories = []
-  for (const [cat, words] of Object.entries(keywords)) {
+
+  // Check priority keywords first
+  for (const [cat, words] of Object.entries(priorityKeywords)) {
     if (words.some(w => text.includes(w))) {
       categories.push(cat)
     }
   }
+
+  // If a priority category (world/environment) was matched, skip secondary keywords
+  // to prevent unrelated matches (e.g. 'trade' in a disaster article → 'business')
+  if (categories.length === 0) {
+    for (const [cat, words] of Object.entries(keywords)) {
+      if (words.some(w => text.includes(w))) {
+        categories.push(cat)
+      }
+    }
+  }
+
   return categories.length > 0 ? categories : null // Return null to trigger AI classification
 }
 
@@ -953,13 +984,19 @@ async function classifyArticleWithAI(title, excerpt) {
     const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
 
     // More strict prompt that forces output format
-    const prompt = `Categorize this article. You may create new categories if needed. Respond with ONLY 1-3 category names, separated by commas. Each name must be lowercase, single word or hyphenated. No other text.
-If existing categories fit, use them; otherwise feel free to introduce new, specific categories.
+    const prompt = `Categorize this news article. Choose 1-3 categories from the preferred list below. Only use a custom category if NONE of the preferred ones fit.
+Preferred categories: world, politics, business, technology, health, sports, entertainment, environment, science, education, crime, society
+
+Rules:
+- For natural disasters (earthquake, flood, hurricane, etc.) → use: world
+- For wars, conflicts, international events → use: world
+- For company news, economy, stocks, trade → use: business
+- Respond with ONLY category names, lowercase, separated by commas. No other text.
 
 Title: ${title}
 Excerpt: ${excerpt}
 
-Example output: politics, technology, international
+Example output: world
 Your output:`
 
     const response = await axios.post(
