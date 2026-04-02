@@ -11,7 +11,7 @@ const axios = require('axios')
 const Parser = require('rss-parser')
 const { pool } = require('./lib/db-worker')
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY_GLOBAL || process.env.OPENROUTER_API_KEY
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL_ID || 'openrouter/free'
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 

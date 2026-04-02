@@ -5,6 +5,7 @@ const siteUrl = 'https://qbitznews.com'
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  applicationName: 'Qbitznews',
   title: {
     default: 'Qbitz - AI-Powered News Platform',
     template: '%s | Qbitz',
