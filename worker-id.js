@@ -25,17 +25,17 @@ if (!OPENROUTER_API_KEY) console.error('[ID-WORKER] WARNING: OPENROUTER_API_KEY 
 // ============================================
 const ID_FEEDS = [
     // ===== INDONESIA (noSourceImage=true: gambar lokal berisi watermark) =====
-    { id: 'id-001', name: 'Detik News', url: 'https://news.detik.com/rss', noSourceImage: true },
-    { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss/terkini.rss', noSourceImage: true },
-    { id: 'id-003', name: 'Tempo', url: 'https://rss.tempo.co/nasional', noSourceImage: true },
-    { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/berita/nasional', noSourceImage: true },
-    { id: 'id-005', name: 'CNN Indonesia', url: 'https://www.cnnindonesia.com/rss', noSourceImage: true },
-    { id: 'id-006', name: 'Republika', url: 'https://www.republika.co.id/rss', noSourceImage: true },
+    { id: 'id-001', name: 'Detik News', url: 'https://news.detik.com/rss', noSourceImage: false },
+    { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss/terkini.rss', noSourceImage: false },
+    { id: 'id-003', name: 'Tempo', url: 'https://rss.tempo.co/nasional', noSourceImage: false },
+    { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/berita/nasional', noSourceImage: false },
+    { id: 'id-005', name: 'CNN Indonesia', url: 'https://www.cnnindonesia.com/rss', noSourceImage: false },
+    { id: 'id-006', name: 'Republika', url: 'https://www.republika.co.id/rss', noSourceImage: false },
     { id: 'id-007', name: 'Liputan6', url: 'https://www.liputan6.com/rss/news', noSourceImage: true },
     { id: 'id-008', name: 'Tribun News', url: 'https://www.tribunnews.com/rss/nasional', noSourceImage: true },
     { id: 'id-009', name: 'Google News ID', url: 'https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id', noSourceImage: true },
     { id: 'id-010', name: 'Jakarta Post', url: 'https://www.thejakartapost.com/feed', noSourceImage: true },
-    { id: 'id-011', name: 'Merdeka', url: 'https://www.merdeka.com/feed/', noSourceImage: true },
+    { id: 'id-011', name: 'Merdeka', url: 'https://www.merdeka.com/feed/', noSourceImage: false },
     { id: 'id-012', name: 'Suara', url: 'https://www.suara.com/rss', noSourceImage: true },
 
     // ===== CRYPTO & BLOCKCHAIN =====
