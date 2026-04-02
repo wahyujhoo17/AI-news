@@ -277,7 +277,7 @@ function TrendingSidebar({ articles, prefix }: { articles: Article[]; prefix: st
 
 // ── Categories Sidebar ────────────────────────────────────────────────────────
 
-function CategoriesSidebar({ categories, prefix }: { categories: Category[]; prefix: string }) {
+function CategoriesSidebar({ categories, prefix, onSelect }: { categories: Category[]; prefix: string; onSelect: (slug: string) => void }) {
   if (!categories.length) return null
   return (
     <div className="rounded-xl border border-cyan-500/20 bg-black/40 backdrop-blur-sm overflow-hidden">
@@ -287,9 +287,9 @@ function CategoriesSidebar({ categories, prefix }: { categories: Category[]; pre
       </div>
       <div className="p-4 flex flex-wrap gap-2">
         {categories.slice(0, 14).map((cat) => (
-          <Link
+          <button
             key={cat.id}
-            href={prefix + "/?category=" + cat.slug}
+            onClick={() => onSelect(cat.slug)}
             className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-700/50 bg-gray-800/50 hover:border-cyan-500/50 hover:bg-cyan-500/10 transition-all duration-200"
           >
             <span
@@ -304,7 +304,7 @@ function CategoriesSidebar({ categories, prefix }: { categories: Category[]; pre
                 ({cat.article_count})
               </span>
             )}
-          </Link>
+          </button>
         ))}
         <Link
           href={prefix + "/categories"}
@@ -682,7 +682,7 @@ function HomeContent({
                 <div className="sticky top-4 space-y-6">
                   <TrendingSidebar articles={trendingArticles} prefix={prefix} />
 
-                  <CategoriesSidebar categories={categories} prefix={prefix} />
+                  <CategoriesSidebar categories={categories} prefix={prefix} onSelect={handleCategoryChange} />
                 </div>
               </div>
             </div>
