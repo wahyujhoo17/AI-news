@@ -15,7 +15,7 @@ export default function Navbar() {
 
   const handleLogoClick = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault()
-    if (window.location.pathname === "/") {
+    if (window.location.pathname === "/" && !window.location.search) {
       window.location.reload()
     } else {
       window.location.href = "/"

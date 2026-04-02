@@ -930,7 +930,7 @@ Begin:`
 function detectCategory(title, content) {
   const text = (title + ' ' + content).toLowerCase()
 
-  // Priority keywords: checked first — if matched, skip business/others to prevent false positives
+  // Priority keywords: checked first — if matched, restricts which secondary keywords can add
   const priorityKeywords = {
     'world': [
       'earthquake', 'tsunami', 'hurricane', 'tornado', 'typhoon', 'cyclone',
@@ -944,13 +944,27 @@ function detectCategory(title, content) {
     'environment': [
       'climate change', 'global warming', 'carbon', 'emission', 'pollution',
       'deforestation', 'biodiversity', 'extinction', 'glacier', 'sea level'
+    ],
+    'sports': [
+      // Generic sports
+      'sport', 'athlete', 'olympic', 'medal', 'championship', 'tournament',
+      'league', 'match', 'fixture', 'squad', 'standings', 'season', 'club',
+      'player', 'team', 'stadium', 'coach', 'referee', 'penalty', 'offside',
+      // Football / soccer specific
+      'football', 'soccer', 'striker', 'midfielder', 'goalkeeper', 'defender',
+      'winger', 'transfer window', 'signing', 'relegated', 'promotion', 'manager',
+      'premier league', 'bundesliga', 'la liga', 'serie a', 'champions league',
+      'europa league', 'world cup', 'euro', 'copa america', 'fa cup',
+      // Other sports
+      'basketball', 'tennis', 'cricket', 'rugby', 'golf', 'boxing', 'swimming',
+      'cycling', 'grand slam', 'wimbledon', 'super bowl', 'nfl', 'nba', 'mlb',
+      'nhl', 'motogp', 'formula 1'
     ]
   }
 
   const keywords = {
     'technology': ['technology', 'tech', 'digital', 'ai', 'software', 'app', 'code', 'programming', 'cyber', 'internet', 'data'],
     'business': ['business', 'market', 'trade', 'commerce', 'company', 'corporate', 'economy', 'finance', 'stock', 'investor'],
-    'sports': ['sport', 'football', 'soccer', 'game', 'athlete', 'championship', 'match', 'league', 'player', 'team'],
     'health': ['health', 'medical', 'doctor', 'disease', 'hospital', 'vaccine', 'covid', 'pandemic', 'treatment', 'wellness'],
     'entertainment': ['entertainment', 'movie', 'music', 'celebrity', 'actor', 'film', 'show', 'series', 'hollywood', 'drama'],
     'politics': ['politics', 'government', 'election', 'president', 'parliament', 'law', 'vote', 'congress', 'senator', 'minister']
@@ -965,13 +979,19 @@ function detectCategory(title, content) {
     }
   }
 
-  // If a priority category (world/environment) was matched, skip secondary keywords
-  // to prevent unrelated matches (e.g. 'trade' in a disaster article → 'business')
-  if (categories.length === 0) {
+  const hasSports = categories.includes('sports')
+  const hasWorld = categories.includes('world') || categories.includes('environment')
+
+  if (!hasSports && !hasWorld) {
+    // No priority match: check all secondary keywords
     for (const [cat, words] of Object.entries(keywords)) {
-      if (words.some(w => text.includes(w))) {
-        categories.push(cat)
-      }
+      if (words.some(w => text.includes(w))) categories.push(cat)
+    }
+  } else {
+    // Priority matched: only allow technology/politics/health as additions
+    // (skip business & entertainment — they produce too many false positives for sports/world articles)
+    for (const cat of ['technology', 'politics', 'health']) {
+      if (keywords[cat]?.some(w => text.includes(w))) categories.push(cat)
     }
   }
 
@@ -1179,8 +1199,19 @@ async function processSource(source, options = {}) {
       console.log("[AI Classification] Analyzing article for additional categories...")
       const aiCategories = await classifyArticleWithAI(generated.title, generated.excerpt)
 
+      // Filter AI suggestions to prevent false positives:
+      // - If sports was keyword-detected, don't let AI add business/entertainment
+      // - If world/environment was keyword-detected, don't let AI add business
+      let filteredAiCategories = aiCategories
+      if (categories.includes('sports')) {
+        filteredAiCategories = filteredAiCategories.filter(c => !['business', 'entertainment'].includes(c))
+      }
+      if (categories.includes('world') || categories.includes('environment')) {
+        filteredAiCategories = filteredAiCategories.filter(c => c !== 'business')
+      }
+
       // Merge keyword categories + AI suggestions + forced categories (e.g. 'technology' for tech sources)
-      const allCategories = [...new Set([...categories, ...aiCategories, ...forcedCategories])]
+      const allCategories = [...new Set([...categories, ...filteredAiCategories, ...forcedCategories])]
       console.log(`[Categorization] Final categories: ${allCategories.join(', ')}`)
 
       const categoryRows = await ensureCategoriesExist(allCategories)
