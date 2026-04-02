@@ -242,6 +242,36 @@ ATURAN ARTIKEL:
         if (!excerpt.endsWith('.')) excerpt += '.'
 
         const usage = response.data?.usage || {}
+        const finishReason = response.data?.choices?.[0]?.finish_reason || ''
+
+        // ── Validasi kelengkapan artikel ────────────────────────────────────
+        // 1. API melaporkan output terpotong karena token habis
+        if (finishReason === 'length') {
+            throw new Error(`Artikel terpotong (finish_reason=length) — tidak disimpan: "${title.slice(0, 60)}"`)
+        }
+
+        // 2. Konten terlalu pendek — AI gagal/terpotong
+        const wordCount = content.split(/\s+/).filter(Boolean).length
+        if (wordCount < 200) {
+            throw new Error(`Konten terlalu pendek (${wordCount} kata, min 200) — tidak disimpan: "${title.slice(0, 60)}"`)
+        }
+
+        // 3. Kalimat terakhir terpotong — tidak diakhiri dengan tanda baca penutup
+        const trimmedContent = content.trimEnd()
+        const lastChar = trimmedContent.slice(-1)
+        const incompleteEnding = !/[.!?"'\)\]»]/.test(lastChar)
+        // Juga cek apakah kata terakhir seperti potongan di tengah kalimat
+        const lastLine = trimmedContent.split('\n').pop()?.trim() || ''
+        const lastLineIncomplete = lastLine.length > 0 && lastLine.length < 30 && !/[.!?]$/.test(lastLine) && !lastLine.startsWith('#')
+        if (incompleteEnding || lastLineIncomplete) {
+            throw new Error(`Konten tidak selesai (kalimat terpotong) — tidak disimpan: "${title.slice(0, 60)}"`)
+        }
+
+        // 4. Judul tidak valid
+        if (!title || title.length < 15) {
+            throw new Error(`Judul terlalu pendek atau kosong — tidak disimpan`)
+        }
+
         return {
             title,
             content,

@@ -885,8 +885,32 @@ Begin:`
     if (!excerpt.endsWith('.')) excerpt += '.'
 
     const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+    const finishReason = data.choices?.[0]?.finish_reason || ''
     const finalImageHint = buildContextualImageHint(aiImageHint, seoHeadline, excerpt)
 
+    // ── Validasi kelengkapan artikel ──────────────────────────────────────
+    // 1. API melaporkan output terpotong karena token habis
+    if (finishReason === 'length') {
+      throw new Error(`Article truncated (finish_reason=length) — not saved: "${seoHeadline.slice(0, 60)}"`)
+    }
+
+    // 2. Konten terlalu pendek — AI gagal/terpotong
+    const wordCount = cleanContent.split(/\s+/).filter(Boolean).length
+    if (wordCount < 200) {
+      throw new Error(`Content too short (${wordCount} words, min 200) — not saved: "${seoHeadline.slice(0, 60)}"`)
+    }
+
+    // 3. Kalimat terakhir terpotong
+    const trimmedClean = cleanContent.trimEnd()
+    const lastChar = trimmedClean.slice(-1)
+    const lastLine = trimmedClean.split('\n').pop()?.trim() || ''
+    const incompleteEnding = !/[.!?"'\)\]»]/.test(lastChar)
+    const lastLineIncomplete = lastLine.length > 0 && lastLine.length < 30 && !/[.!?]$/.test(lastLine) && !lastLine.startsWith('#')
+    if (incompleteEnding || lastLineIncomplete) {
+      throw new Error(`Content incomplete (truncated sentence) — not saved: "${seoHeadline.slice(0, 60)}"`)
+    }
+
+    groqManager.recordSuccess(groqKey)
     return {
       title: seoHeadline,  // Use extracted SEO headline instead of source title
       content: cleanContent,
@@ -898,7 +922,6 @@ Begin:`
       model: groqModel,
       format: 'markdown'
     }
-    groqManager.recordSuccess(groqKey)
   } catch (err) {
     const status = err.response?.status
     const errData = err.response?.data
