@@ -623,9 +623,6 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       />
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        {/* Top leaderboard banner */}
-        <GoogleAd slot="2956751791" format="horizontal" className="mb-8 text-center" />
-
         <div className="flex gap-8 items-start">
         {/* ── Left: Article content ── */}
         <div className="flex-1 min-w-0">

@@ -78,6 +78,8 @@ export default function RootLayout({
         <meta name="google-adsense-account" content="ca-pub-5926049453295619" />
         <meta name="monetag" content="b6acb39d1815c899fc652ab123219fd8" />
         <script src="https://quge5.com/88/tag.min.js" data-zone="225633" async data-cfasync="false" />
+        {/* Monetag In-Page Push — zone 10818984 */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(s){s.dataset.zone='10818984',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))` }} />
         <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5926049453295619"

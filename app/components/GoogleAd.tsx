@@ -39,9 +39,6 @@ export default function GoogleAd({
 
   return (
     <div className={"overflow-hidden " + className}>
-      <p className="text-center text-xs text-gray-600 uppercase tracking-wider mb-1 font-semibold">
-        Advertisement
-      </p>
       <ins
         ref={insRef}
         className="adsbygoogle block"
