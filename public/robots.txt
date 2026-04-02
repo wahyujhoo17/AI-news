@@ -36,27 +36,46 @@ Allow: /
 Crawl-delay: 0
 Request-rate: 100/60
 
-# Block problematic bots
-User-agent: Amazonbot
-Disallow: /
+# AI crawlers — allow for dataset & AI search indexing
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: YouBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
 
 User-agent: Applebot-Extended
-Disallow: /
+Allow: /
 
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: FacebookBot
+Allow: /
+
+# Block only scrapers with no SEO/AI value
 User-agent: Bytespider
 Disallow: /
 
 User-agent: CCBot
 Disallow: /
 
-User-agent: ClaudeBot
-Disallow: /
-
-User-agent: GPTBot
-Disallow: /
-
-User-agent: meta-externalagent
-Disallow: /
-
-User-agent: ChatGPT-User
+User-agent: Amazonbot
 Disallow: /
