@@ -76,6 +76,7 @@ export default function RootLayout({
     <html lang="id" className="scroll-smooth">
       <head>
         <meta name="google-adsense-account" content="ca-pub-5926049453295619" />
+        <meta name="monetag" content="b6acb39d1815c899fc652ab123219fd8" />
         <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5926049453295619"
