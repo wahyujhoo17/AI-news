@@ -4,6 +4,7 @@ import React from "react"
 import Link from "next/link"
 import Navbar from "@/app/components/Navbar"
 import Footer from "@/app/components/Footer"
+import GoogleAd from "@/app/components/GoogleAd"
 import {
   buildArticlePath,
   buildArticleRouteParam,
@@ -621,7 +622,13 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
 
-      <main className="relative z-10 max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+        {/* Top leaderboard banner */}
+        <GoogleAd slot="2956751791" format="horizontal" className="mb-8 text-center" />
+
+        <div className="flex gap-8 items-start">
+        {/* ── Left: Article content ── */}
+        <div className="flex-1 min-w-0">
         {/* Breadcrumb navigation */}
         <nav aria-label="breadcrumb" className="mb-8">
           <ol className="flex items-center flex-wrap gap-1.5 text-sm text-gray-500">
@@ -724,6 +731,9 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             {renderMarkdownContent(article.content)}
           </div>
 
+          {/* In-content banner ad */}
+          <GoogleAd slot="7318960512" format="horizontal" className="my-6" />
+
           {(readAlsoArticles.length > 0 || article.categories) && (
             <div className="mb-8 p-4 border-l-4 border-cyan-500/60 bg-cyan-500/5 rounded-r space-y-4">
               {readAlsoArticles.length > 0 && (
@@ -775,6 +785,9 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             {isId ? "Kembali ke Beranda" : "Back to Home"}
           </Link>
         </div>
+
+        {/* Bottom banner before recommended */}
+        <GoogleAd slot="4127083649" format="horizontal" className="my-8" />
 
         {recommendedReadingArticles.length > 0 && (
           <div className="mt-10 pt-12 border-t border-cyan-500/20">
@@ -845,6 +858,17 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
             </div>
           </div>
         )}
+        </div>{/* end left column */}
+
+        {/* ── Right: Sticky sidebar ads ── */}
+        <aside className="hidden lg:block w-[300px] flex-shrink-0">
+          <div className="sticky top-24 space-y-6">
+            <GoogleAd slot="6085234178" format="rectangle" style={{ display: "block", width: "300px", height: "250px" }} />
+            <GoogleAd slot="1834567290" format="vertical" style={{ display: "block", width: "300px", height: "600px" }} />
+          </div>
+        </aside>
+
+        </div>{/* end 2-col flex */}
       </main>
 
       <Footer />
