@@ -24,19 +24,19 @@ if (!OPENROUTER_API_KEY) console.error('[ID-WORKER] WARNING: OPENROUTER_API_KEY 
 // RSS SOURCES — Indonesia + International
 // ============================================
 const ID_FEEDS = [
-    // ===== INDONESIA =====
-    { id: 'id-001', name: 'Detik News', url: 'https://news.detik.com/rss' },
-    { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss/terkini.rss' },       // was 404 — keep, may recover
-    { id: 'id-003', name: 'Tempo', url: 'https://rss.tempo.co/nasional' },
-    { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/berita/nasional' },            // fixed URL
-    { id: 'id-005', name: 'CNN Indonesia', url: 'https://www.cnnindonesia.com/rss' },
-    { id: 'id-006', name: 'Republika', url: 'https://www.republika.co.id/rss' },
-    { id: 'id-007', name: 'Liputan6', url: 'https://www.liputan6.com/rss/news' },                   // replaced Okezone (XML error)
-    { id: 'id-008', name: 'Tribun News', url: 'https://www.tribunnews.com/rss/nasional' },          // was 403 on /rss, try /rss/nasional
-    { id: 'id-009', name: 'Google News ID', url: 'https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id' },
-    { id: 'id-010', name: 'Jakarta Post', url: 'https://www.thejakartapost.com/feed' },
-    { id: 'id-011', name: 'Merdeka', url: 'https://www.merdeka.com/feed/' },
-    { id: 'id-012', name: 'Suara', url: 'https://www.suara.com/rss' },
+    // ===== INDONESIA (noSourceImage=true: gambar lokal berisi watermark) =====
+    { id: 'id-001', name: 'Detik News', url: 'https://news.detik.com/rss', noSourceImage: true },
+    { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss/terkini.rss', noSourceImage: true },
+    { id: 'id-003', name: 'Tempo', url: 'https://rss.tempo.co/nasional', noSourceImage: true },
+    { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/berita/nasional', noSourceImage: true },
+    { id: 'id-005', name: 'CNN Indonesia', url: 'https://www.cnnindonesia.com/rss', noSourceImage: true },
+    { id: 'id-006', name: 'Republika', url: 'https://www.republika.co.id/rss', noSourceImage: true },
+    { id: 'id-007', name: 'Liputan6', url: 'https://www.liputan6.com/rss/news', noSourceImage: true },
+    { id: 'id-008', name: 'Tribun News', url: 'https://www.tribunnews.com/rss/nasional', noSourceImage: true },
+    { id: 'id-009', name: 'Google News ID', url: 'https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id', noSourceImage: true },
+    { id: 'id-010', name: 'Jakarta Post', url: 'https://www.thejakartapost.com/feed', noSourceImage: true },
+    { id: 'id-011', name: 'Merdeka', url: 'https://www.merdeka.com/feed/', noSourceImage: true },
+    { id: 'id-012', name: 'Suara', url: 'https://www.suara.com/rss', noSourceImage: true },
 
     // ===== CRYPTO & BLOCKCHAIN =====
     { id: 'cr-001', name: 'CoinDesk', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/' },
@@ -53,21 +53,36 @@ const ID_FEEDS = [
     { id: 'tc-006', name: 'VentureBeat', url: 'https://venturebeat.com/feed/' },
 
     // ===== BISNIS & EKONOMI GLOBAL =====
-    { id: 'bz-001', name: 'Reuters', url: 'https://feeds.reuters.com/reuters/topNews' },            // replaced dead businessNews endpoint
+    { id: 'bz-001', name: 'Reuters', url: 'https://feeds.reuters.com/reuters/topNews' },
     { id: 'bz-002', name: 'CNBC', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html' },
 
-    // ===== OLAHRAGA & SEPAK BOLA =====
-    { id: 'sp-001', name: 'Bola.net', url: 'https://www.bola.net/rss/rss.html' },
-    { id: 'sp-002', name: 'Bola.com', url: 'https://www.bola.com/rss' },
-    { id: 'sp-003', name: 'Tribun Sport', url: 'https://www.tribunnews.com/rss/sport' },
+    // ===== OLAHRAGA — SEPAK BOLA (internasional, tanpa watermark) =====
+    { id: 'sp-001', name: 'Bola.net', url: 'https://www.bola.net/rss/rss.html', noSourceImage: true },
+    { id: 'sp-002', name: 'Bola.com', url: 'https://www.bola.com/rss', noSourceImage: true },
+    { id: 'sp-003', name: 'Tribun Sport', url: 'https://www.tribunnews.com/rss/sport', noSourceImage: true },
     { id: 'sp-004', name: 'ESPN FC', url: 'https://www.espn.com/espn/rss/soccer/news' },
-    { id: 'sp-005', name: 'BBC Sport', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml' },
+    { id: 'sp-005', name: 'BBC Sport Football', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml' },
     { id: 'sp-006', name: 'Sky Sports Football', url: 'https://www.skysports.com/rss/12040' },
+    { id: 'sp-007', name: 'BBC Premier League', url: 'https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml' },
+    { id: 'sp-008', name: '90min Football', url: 'https://www.90min.com/posts.rss' },
+    { id: 'sp-009', name: 'Goal.com', url: 'https://www.goal.com/feeds/en/news' },
+    { id: 'sp-010', name: 'BBC Football Champions League', url: 'https://feeds.bbci.co.uk/sport/football/european/rss.xml' },
+
+    // ===== OLAHRAGA — MULTI SPORT =====
+    { id: 'ms-001', name: 'ESPN Top Sports', url: 'https://www.espn.com/espn/rss/news' },
+    { id: 'ms-002', name: 'BBC Sport', url: 'https://feeds.bbci.co.uk/sport/rss.xml' },
+    { id: 'ms-003', name: 'Sky Sports', url: 'https://www.skysports.com/rss/12433' },
+    { id: 'ms-004', name: 'BWF Badminton', url: 'https://bwfbadminton.com/feed/' },
+    { id: 'ms-005', name: 'ATP Tennis', url: 'https://www.atptour.com/en/media/rss-feed/xml-feed' },
+    { id: 'ms-006', name: 'NBA', url: 'https://www.nba.com/news/rss.xml' },
+    { id: 'ms-007', name: 'ESPN Motorsport', url: 'https://www.espn.com/espn/rss/f1/news' },
 ]
 
 const CRAWL_CONFIG = {
-    TOTAL_BUDGET: 10,
-    MAX_PER_SOURCE: 2,
+    TOTAL_BUDGET: 15,       // total artikel target per siklus
+    MAX_PER_SOURCE: 2,      // maks artikel per sumber
+    SPORTS_RATIO: 0.40,     // ~40% konten olahraga
+    LOCAL_RATIO: 0.30,      // ~30% berita lokal Indonesia
 }
 
 // ============================================
@@ -105,9 +120,9 @@ Tulis output PERSIS dalam format berikut (ganti teks dalam kurung siku, jangan t
 
 IMAGE_HINT: [4-6 kata BAHASA INGGRIS untuk foto Unsplash]
 
-CATEGORY: [1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita]
+CATEGORY: [1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Sepakbola | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita]
 
-[Isi artikel minimal 700 kata dalam BAHASA INDONESIA menggunakan Markdown]
+[Isi artikel minimal 500 kata dalam BAHASA INDONESIA menggunakan Markdown]
 
 ATURAN WAJIB:
 - SELURUH judul dan isi artikel HARUS dalam bahasa Indonesia — DILARANG menulis dalam bahasa Inggris
@@ -165,7 +180,7 @@ ATURAN ARTIKEL:
         // Parse IMAGE_HINT and CATEGORY
         let aiImageHint = ''
         let aiCategories = []
-        const VALID_CATEGORIES = new Set(['Kripto & Blockchain', 'Teknologi', 'Politik', 'Ekonomi', 'Olahraga', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Hukum & Kriminal', 'Lingkungan', 'Berita'])
+        const VALID_CATEGORIES = new Set(['Kripto & Blockchain', 'Teknologi', 'Politik', 'Ekonomi', 'Olahraga', 'Sepakbola', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Hukum & Kriminal', 'Lingkungan', 'Berita'])
         const rawLines = fullContent.split('\n')
         for (let i = rawLines.length - 1; i >= 0; i--) {
             const line = rawLines[i].trim()
@@ -621,23 +636,33 @@ function detectCategories(title, content) {
 // ============================================
 async function crawlIndonesian() {
     console.log('\n[ID-WORKER] ===== Starting Indonesian crawl cycle =====')
-    const shuffledFeeds = [...ID_FEEDS].sort(() => Math.random() - 0.5)
+
+    const sportsBudget = Math.round(CRAWL_CONFIG.TOTAL_BUDGET * CRAWL_CONFIG.SPORTS_RATIO)
+    const localBudget = Math.round(CRAWL_CONFIG.TOTAL_BUDGET * CRAWL_CONFIG.LOCAL_RATIO)
+    const otherBudget = Math.max(0, CRAWL_CONFIG.TOTAL_BUDGET - sportsBudget - localBudget)
+    console.log(`[ID-WORKER] Budget: ${CRAWL_CONFIG.TOTAL_BUDGET} | Olahraga: ${sportsBudget} | Lokal: ${localBudget} | Lainnya: ${otherBudget}`)
+
+    const sportsFeedIds = new Set(['sp-001', 'sp-002', 'sp-003', 'sp-004', 'sp-005', 'sp-006', 'sp-007', 'sp-008', 'sp-009', 'sp-010', 'ms-001', 'ms-002', 'ms-003', 'ms-004', 'ms-005', 'ms-006', 'ms-007'])
+    const localFeedIds = new Set(['id-001', 'id-002', 'id-003', 'id-004', 'id-005', 'id-006', 'id-007', 'id-008', 'id-009', 'id-010', 'id-011', 'id-012'])
+
+    const sportsFeeds = ID_FEEDS.filter(f => sportsFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
+    const localFeeds = ID_FEEDS.filter(f => localFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
+    const otherFeeds = ID_FEEDS.filter(f => !sportsFeedIds.has(f.id) && !localFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
+
     let totalGenerated = 0
+    let sportsGenerated = 0
+    let localGenerated = 0
 
-    for (const feed of shuffledFeeds) {
-        if (totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
-
+    // Helper: process one feed up to a given remaining budget
+    async function processFeed(feed, remaining) {
+        if (remaining <= 0) return 0
         console.log(`[ID-WORKER] Fetching: ${feed.name}`)
         const items = await fetchRSS(feed.url)
-
-        if (items.length === 0) {
-            console.log(`[ID-WORKER] No items from ${feed.name}`)
-            continue
-        }
+        if (items.length === 0) { console.log(`[ID-WORKER] No items from ${feed.name}`); return 0 }
 
         let fromSource = 0
         for (const item of items.slice(0, CRAWL_CONFIG.MAX_PER_SOURCE)) {
-            if (totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
+            if (fromSource >= remaining) break
             if (!item.title || item.title.length < 10) continue
 
             // Dedup: check source URL
@@ -685,16 +710,26 @@ async function crawlIndonesian() {
                     : detectCategories(generated.title, generated.content)
                 console.log(`[ID-WORKER] Kategori: [${categories.join(', ')}] (${generated.categories?.length > 0 ? 'AI' : 'fallback'})`)
 
-                // Fetch image: 1) RSS feed image → 2) og:image from source page → 3) Unsplash fallback
-                const imageUrl =
-                    item.sourceImage ||
-                    await fetchSourceImage(item.link) ||
-                    await fetchImageFromUnsplash({
+                // Fetch image:
+                // - Media lokal Indonesia (noSourceImage=true): langsung Unsplash (hindari watermark)
+                // - Media internasional: RSS/og:image dulu, fallback Unsplash
+                const imageUrl = feed.noSourceImage
+                    ? await fetchImageFromUnsplash({
                         imageHint: generated.image_hint,
                         title: generated.title,
                         excerpt: generated.excerpt,
                         categories,
                     })
+                    : (
+                        item.sourceImage ||
+                        await fetchSourceImage(item.link) ||
+                        await fetchImageFromUnsplash({
+                            imageHint: generated.image_hint,
+                            title: generated.title,
+                            excerpt: generated.excerpt,
+                            categories,
+                        })
+                    )
 
                 // Save
                 const saved = await saveArticleId({
@@ -725,6 +760,32 @@ async function crawlIndonesian() {
             }
         }
         if (fromSource > 0) console.log(`[ID-WORKER] ${fromSource} article(s) from ${feed.name}`)
+        return fromSource
+    }
+
+    // ── 1. Sports feeds (target: ~40%) ──────────────────────────────────────
+    for (const feed of sportsFeeds) {
+        if (sportsGenerated >= sportsBudget) break
+        const n = await processFeed(feed, sportsBudget - sportsGenerated)
+        sportsGenerated += n
+        totalGenerated += n
+    }
+    console.log(`[ID-WORKER] Olahraga: ${sportsGenerated}/${sportsBudget}`)
+
+    // ── 2. Local Indonesian feeds (target: ~30%) ──────────────────────────
+    for (const feed of localFeeds) {
+        if (localGenerated >= localBudget || totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
+        const n = await processFeed(feed, Math.min(localBudget - localGenerated, CRAWL_CONFIG.TOTAL_BUDGET - totalGenerated))
+        localGenerated += n
+        totalGenerated += n
+    }
+    console.log(`[ID-WORKER] Lokal: ${localGenerated}/${localBudget}`)
+
+    // ── 3. Others (crypto, tech, business) fill remaining budget ──────────
+    for (const feed of otherFeeds) {
+        if (totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
+        const n = await processFeed(feed, CRAWL_CONFIG.TOTAL_BUDGET - totalGenerated)
+        totalGenerated += n
     }
 
     console.log(`[ID-WORKER] ===== Cycle done: ${totalGenerated} articles generated =====\n`)
