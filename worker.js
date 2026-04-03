@@ -241,9 +241,16 @@ function stripImageHintArtifacts(text = '') {
 
   return text
     .split('\n')
-    .filter(line => !/^\s*image[_\s-]?hint\s*[:\-]/i.test(line.trim()))
+    .filter(line => {
+      const t = line.trim()
+      return !/^\s*image[_\s-]?hint\s*[:\-]/i.test(t)
+          && !/^\s*excerpt\s*[:\-]/i.test(t)
+          && !/^\s*category\s*[:\-]/i.test(t)
+    })
     .join('\n')
     .replace(/(?:^|\n)\s*image[_\s-]?hint\s*[:\-]\s*[^\n]*/gi, '')
+    .replace(/(?:^|\n)\s*excerpt\s*[:\-]\s*[^\n]*/gi, '')
+    .replace(/(?:^|\n)\s*category\s*[:\-]\s*[^\n]*/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
