@@ -652,7 +652,7 @@ OUTPUT FORMAT (follow exactly):
   - Avoid generic words: "news", "update", "breaking"
   - Example: IMAGE_HINT: diplomatic meeting conference room discussion
 4. Blank line
-5. Article body in MARKDOWN (minimum 800 words)
+5. Article body in MARKDOWN (minimum 500 words)
   - Keep journalistic narrative flow; structure must adapt to this specific story
   - Headings are OPTIONAL (use only when truly needed, max 2)
   - NEVER use generic templated headings: "Introduction", "Background", "Overview", "Conclusion", "Summary"
