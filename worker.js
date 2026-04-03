@@ -1,6 +1,42 @@
 require('dotenv').config()
 const cron = require('node-cron')
 const axios = require('axios')
+
+// ── Google Indexing API ───────────────────────────────────────────────────────
+const { GoogleAuth } = require('google-auth-library')
+let _googleAuthClient = null
+
+async function getGoogleAuthClient() {
+  if (_googleAuthClient) return _googleAuthClient
+  try {
+    const auth = new GoogleAuth({
+      keyFile: '/var/www/ai-news/google-indexing-key.json',
+      scopes: ['https://www.googleapis.com/auth/indexing'],
+    })
+    _googleAuthClient = await auth.getClient()
+    return _googleAuthClient
+  } catch (err) {
+    console.error('[INDEXING] Failed to init Google Auth:', err.message)
+    return null
+  }
+}
+
+async function notifyGoogleIndexing(url) {
+  try {
+    const client = await getGoogleAuthClient()
+    if (!client) return
+    const res = await client.request({
+      url: 'https://indexing.googleapis.com/v3/urlNotifications:publish',
+      method: 'POST',
+      data: { url, type: 'URL_UPDATED' },
+    })
+    console.log(`[INDEXING] Notified Google: ${url.slice(0, 70)} → ${res.data?.urlNotificationMetadata?.url ? 'OK' : JSON.stringify(res.data)}`)
+  } catch (err) {
+    console.error(`[INDEXING] Failed for ${url.slice(0, 70)}: ${err.message}`)
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const Parser = require('rss-parser')
 const cheerio = require('cheerio')
 const fs = require('fs')
@@ -96,13 +132,13 @@ try {
 const BUILTIN_FEEDS = [
   { name: 'Google News Top Stories', type: 'rss', url: 'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en' },
   { name: 'CNN World', type: 'rss', url: 'http://rss.cnn.com/rss/edition_world.rss' },
-  { name: 'BBC World', type: 'rss', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
+  { name: 'BBC World', type: 'rss', url: 'https://feeds.bbci.co.uk/news/world/rss.xml', noSourceImage: true },
   { name: 'Reuters Top News', type: 'rss', url: 'https://www.reutersagency.com/feed/?post_type=best&post_type_best_topics=top-news&output=rss' },
   { name: 'France 24', type: 'rss', url: 'https://www.france24.com/en/rss' },
   { name: 'CBS News', type: 'rss', url: 'https://www.cbsnews.com/latest/rss/main' },
   { name: 'NPR News', type: 'rss', url: 'https://feeds.npr.org/1001/rss.xml' },
   { name: 'The Guardian International', type: 'rss', url: 'https://www.theguardian.com/world/rss' },
-  { name: 'Sky News', type: 'rss', url: 'https://news.sky.com/tools/rss' },
+  { name: 'Sky News', type: 'rss', url: 'https://news.sky.com/tools/rss', noSourceImage: true },
   { name: 'Independent', type: 'rss', url: 'https://www.independent.co.uk/rss' }
 ]
 
@@ -120,10 +156,10 @@ const TECH_FEEDS = [
 
 // Football-specific feeds
 const FOOTBALL_FEEDS = [
-  { id: 911, name: 'BBC Football', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', isFootball: true },
+  { id: 911, name: 'BBC Football', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', isFootball: true, noSourceImage: true },
   { id: 912, name: 'Sky Sports Football', type: 'rss', url: 'https://www.skysports.com/rss/12040', isFootball: true },
   { id: 913, name: 'ESPN FC', type: 'rss', url: 'https://www.espn.com/espn/rss/soccer/news', isFootball: true },
-  { id: 914, name: 'BBC Premier League', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml', isFootball: true },
+  { id: 914, name: 'BBC Premier League', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml', isFootball: true, noSourceImage: true },
   { id: 915, name: '90min Football', type: 'rss', url: 'https://www.90min.com/posts.rss', isFootball: true },
   { id: 916, name: 'Football London', type: 'rss', url: 'https://www.football.london/?widget_name=football_london_rss_feed', isFootball: true },
 ]
@@ -636,15 +672,21 @@ Source Title: ${title}
 Source Content: ${sourceContent.slice(0, 2000)}
 
 OUTPUT FORMAT (follow exactly):
-1. First line: A SPECIFIC, SEO-friendly headline (55-80 chars)
+1. First line: A SPECIFIC, SEO-friendly, high-CTR headline (55-80 chars)
    - Structure: Subject + Verb + Object (e.g., "[Who] [Does/Announces/Wins] [What]")
    - Must mention WHO and WHAT specifically (name, organization, country, topic)
    - Must be descriptive enough to stand alone without reading the article
    - Use present tense or past participle (e.g., "Launches", "Signs", "Warns", "Passed")
    - Do NOT start with "The", "A", or "An" — start with a proper noun, organization, or country name
    - Do NOT write a body sentence (e.g., "The root of the crisis lies in...") — write a headline
+   - USE HIGH-CTR TECHNIQUES (pick the most appropriate):
+     * Include numbers/data if available: "Study Finds 73% of...", "5 Countries That..."
+     * Use power words that trigger emotion: "Reveals", "Breaks", "Slams", "Warns", "Shocks", "Confirms", "Finally", "Secretly"
+     * Create curiosity gap when appropriate: "The Real Reason...", "What Really Happened When...", "How X Managed to..."
+     * Highlight stakes or consequences: "...and It Could Change Everything", "...Putting Millions at Risk"
+     * Use tension-driven verbs: "Defies", "Refuses", "Exposes", "Challenges", "Overturn"
    - BAD examples: "The Courtesy Visit", "Breaking News", "A Momentum Shift", "The legal case is unprecedented"
-   - GOOD examples: "ASEAN Secretary-General Meets UN University Network Chief in Jakarta", "South Africa Composer Sues Comedian Over Lion King Chant Misrepresentation", "UN Votes to Label Transatlantic Slave Trade as Gravest Crime Against Humanity"
+   - GOOD high-CTR examples: "Chelsea Drops Fernandez After Heated Exchange Shocks Club Insiders", "Scientists Reveal Why 1 in 3 Cancer Treatments Suddenly Stops Working", "How Meta Secretly Built an AI That Outperforms GPT-4 on Every Benchmark", "UN Warns 40 Million People Face Starvation as Aid Funding Collapses"
 2. Blank line
 3. Second line: IMAGE_HINT: 4-8 keywords in English for photo search
   - Must be concrete visual concepts (scene/object/action), but keep it broad and contextual
@@ -652,7 +694,18 @@ OUTPUT FORMAT (follow exactly):
   - Avoid generic words: "news", "update", "breaking"
   - Example: IMAGE_HINT: diplomatic meeting conference room discussion
 4. Blank line
-5. Article body in MARKDOWN (minimum 500 words)
+5. Third line: EXCERPT: A compelling 1-2 sentence teaser (120-155 chars)
+   - Must hook the reader and create curiosity or urgency
+   - Highlight the most surprising/impactful angle of the story
+   - Do NOT just repeat the headline — add new info or tension
+   - Do NOT start with "This article", "In this piece", or "Learn about"
+   - GOOD examples:
+     * "Internal documents reveal the AI was tested for months before anyone outside knew — and the results alarmed even its creators."
+     * "The decision came after a closed-door meeting that sources say lasted six hours and ended in a heated standoff."
+     * "Experts warn the ruling sets a precedent that could affect millions of users across 40 countries."
+   - BAD examples: "Read this article to find out more.", "Chelsea dropped their midfielder."
+6. Blank line
+7. Article body in MARKDOWN (minimum 500 words)
   - Keep journalistic narrative flow; structure must adapt to this specific story
   - Headings are OPTIONAL (use only when truly needed, max 2)
   - NEVER use generic templated headings: "Introduction", "Background", "Overview", "Conclusion", "Summary"
@@ -870,19 +923,37 @@ Begin:`
 
     console.log(`[HEADLINE] Extracted SEO headline (${seoHeadline.length} chars): ${seoHeadline.slice(0, 70)}`)
 
-    // === EXTRACT EXCERPT dari konten bersih ===
-    const excerptLines = cleanContent.split('\n').filter(l => l.trim())
+    // === EXTRACT EXCERPT: prioritas dari field EXCERPT: AI-generated ===
     let excerpt = ''
-    for (const line of excerptLines) {
-      const t = line.trim()
-      if (!t.startsWith('#') && !t.startsWith('|') && !t.startsWith('-') && t.length > 40) {
-        excerpt = t.replace(/\*\*/g, '').trim()
-        break
+    const excerptFieldMatch = rawContent.match(/^EXCERPT:\s*(.+)$/m)
+    if (excerptFieldMatch && excerptFieldMatch[1].trim().length > 30) {
+      excerpt = excerptFieldMatch[1].trim()
+      console.log(`[EXCERPT] Using AI-generated excerpt (${excerpt.length} chars)`)
+    } else {
+      // Fallback: ambil dari paragraf pertama konten bersih
+      const excerptLines = cleanContent.split('\n').filter(l => l.trim())
+      for (const line of excerptLines) {
+        const t = line.trim()
+        if (!t.startsWith('#') && !t.startsWith('|') && !t.startsWith('-') && t.length > 40) {
+          excerpt = t.replace(/\*\*/g, '').trim()
+          break
+        }
       }
+      if (!excerpt) excerpt = 'Read the full article for details.'
+      excerpt = excerpt.split('. ').slice(0, 2).join('. ')
+      if (!excerpt.endsWith('.')) excerpt += '.'
+      console.log(`[EXCERPT] Using fallback paragraph excerpt`)
     }
-    if (!excerpt) excerpt = 'Read the full article for details.'
-    excerpt = excerpt.split('. ').slice(0, 2).join('. ')
-    if (!excerpt.endsWith('.')) excerpt += '.'
+    // Trim to max 155 chars for meta description
+    // Potong excerpt di batas kalimat atau batas kata, max 155 chars
+    if (excerpt.length > 155) {
+        const sentenceEnd = excerpt.slice(0, 155).search(/[.!?][^.!?]*$/)
+        if (sentenceEnd > 80) {
+            excerpt = excerpt.slice(0, sentenceEnd + 1).trim()
+        } else {
+            excerpt = excerpt.slice(0, 152).replace(/\s+\S*$/, '').trimEnd() + '...'
+        }
+    }
 
     const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
     const finishReason = data.choices?.[0]?.finish_reason || ''
@@ -944,8 +1015,75 @@ Begin:`
         return generateArticle(title, sourceContent, sourceUrl, _attempt + 1)
       }
       console.error(`[GROQ] All ${maxAttempts} keys rate-limited. Giving up on: "${title.slice(0, 50)}"`)
+      // Fallback ke OpenRouter jika tersedia
+      if (process.env.OPENROUTER_API_KEY_GLOBAL) {
+        console.log('[GROQ→OR] Falling back to OpenRouter...')
+        return generateArticleOpenRouter(title, sourceContent, sourceUrl)
+      }
     }
     console.error('Groq API error:', errData || err.message)
+    throw err
+  }
+}
+
+// Fallback: OpenRouter untuk saat Groq TPD habis
+async function generateArticleOpenRouter(title, sourceContent, sourceUrl) {
+  const OPENROUTER_FALLBACK_MODELS = [
+    'z-ai/glm-4.5-air:free',
+    'stepfun/step-3.5-flash:free',
+    'meta-llama/llama-3.3-8b-instruct:free',
+  ]
+  const model = OPENROUTER_FALLBACK_MODELS[0]
+  // Reuse same prompt structure dari generateArticle
+  const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.\n\nSource Title: ${title}\nSource Content: ${sourceContent.slice(0, 2000)}\n\nWrite a complete article in English with a strong SEO headline on the first line, followed by a blank line, then the article body (minimum 400 words). Include an EXCERPT: line after the headline with a 1-2 sentence compelling teaser. Include IMAGE_HINT: with 4-6 English words for Unsplash. Include CATEGORY: from: Technology | Business | Sports | Football | Health | Entertainment | Politics | Environment | Education | Crime | Crypto | General`
+
+  try {
+    const res = await axios.post(
+      'https://openrouter.ai/api/v1/chat/completions',
+      { model, messages: [{ role: 'user', content: prompt }], max_tokens: 4096, temperature: 0.7 },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY_GLOBAL}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://qbitznews.com',
+          'X-Title': 'QbitzNews Global Worker Fallback',
+        },
+        timeout: 120000
+      }
+    )
+    const text = res.data?.choices?.[0]?.message?.content || ''
+    if (!text) throw new Error('Empty OpenRouter response')
+    console.log(`[OR-FALLBACK] Generated via ${model}: ${title.slice(0, 50)}`)
+    // Parse sederhana: ambil baris pertama sebagai headline, sisanya sebagai content
+    const orLines = text.split('\n')
+    let orHeadline = ''
+    let orExcerpt = ''
+    let orImageHint = ''
+    let orCategory = ''
+    let orBodyStart = 0
+    for (let i = 0; i < Math.min(orLines.length, 8); i++) {
+      const ln = orLines[i].trim()
+      if (!ln) continue
+      if (/^excerpt\s*[:\-]/i.test(ln)) { orExcerpt = ln.replace(/^excerpt\s*[:\-]\s*/i, '').trim(); continue }
+      if (/^image[_\s-]?hint\s*[:\-]/i.test(ln)) { orImageHint = ln.replace(/^image[_\s-]?hint\s*[:\-]\s*/i, '').trim(); continue }
+      if (/^category\s*[:\-]/i.test(ln)) { orCategory = ln.replace(/^category\s*[:\-]\s*/i, '').trim(); continue }
+      if (!orHeadline && ln.length > 15) { orHeadline = ln.replace(/^#+\s*/, '').trim(); orBodyStart = i + 1; continue }
+    }
+    if (!orHeadline) orHeadline = title
+    const orBody = orLines.slice(orBodyStart).join('\n').replace(/^image[_\s-]?hint[^\n]*/gim, '').replace(/^excerpt[^\n]*/gim, '').replace(/^category[^\n]*/gim, '').trim()
+    return {
+      title: orHeadline,
+      content: orBody,
+      excerpt: orExcerpt || orBody.split('\n').find(l => l.trim().length > 50) || '',
+      image_hint: orImageHint || title.split(' ').slice(0, 4).join(' '),
+      author: 'AI News Editor',
+      tokens: { prompt: 0, completion: 0, total: 0 },
+      cost: 0,
+      model: model,
+      format: 'markdown',
+    }
+  } catch (err) {
+    console.error(`[OR-FALLBACK] Failed: ${err.message}`)
     throw err
   }
 }
@@ -1239,17 +1377,27 @@ async function processSource(source, options = {}) {
 
       const categoryRows = await ensureCategoriesExist(allCategories)
 
-      // Prefer source/article image first, then fallback to a more contextual Unsplash search
-      const featuredImage =
-        article.sourceImage ||
-        await fetchSourceImage(article.link) ||
-        await fetchImageFromUnsplash({
-          title: generated.title,
-          excerpt: generated.excerpt,
-          imageHint: generated.image_hint,
-          categories: categoryRows.map(cat => cat.slug || cat.name),
-          sourceName: source.name,
-        })
+      // Prefer source/article image first, unless noSourceImage=true (avoid watermarked images from BBC, Sky, etc)
+      // then fallback to a more contextual Unsplash search
+      const featuredImage = source.noSourceImage
+        ? await fetchImageFromUnsplash({
+            title: generated.title,
+            excerpt: generated.excerpt,
+            imageHint: generated.image_hint,
+            categories: categoryRows.map(cat => cat.slug || cat.name),
+            sourceName: source.name,
+          })
+        : (
+            article.sourceImage ||
+            await fetchSourceImage(article.link) ||
+            await fetchImageFromUnsplash({
+              title: generated.title,
+              excerpt: generated.excerpt,
+              imageHint: generated.image_hint,
+              categories: categoryRows.map(cat => cat.slug || cat.name),
+              sourceName: source.name,
+            })
+          )
 
       const uniqueFeaturedImage = await ensureUniqueFeaturedImage(featuredImage)
 
@@ -1291,6 +1439,10 @@ async function processSource(source, options = {}) {
 
       generatedCount++
       console.log("Generated:", saved.rows[0].id, "-", generated.title.slice(0, 50))
+      // Notify Google Indexing API
+      const articleSlug = saved.rows[0].slug || saved.rows[0].id
+      const articleUrl = `https://qbitznews.com/articles/${articleSlug}`
+      notifyGoogleIndexing(articleUrl).catch(() => {})
     } catch (err) {
       console.error(`Failed to generate article from ${article.title} :`, err.message)
     }

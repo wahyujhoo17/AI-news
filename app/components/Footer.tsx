@@ -106,14 +106,8 @@ export default function Footer() {
           {/* Bottom Section */}
           <div className="flex flex-col md:flex-row items-center justify-between">
             <p className="text-gray-500 text-sm text-center md:text-left mb-4 md:mb-0">
-              &copy; {currentYear} Qbitz. All rights reserved. Powered by AI.
+              &copy; {currentYear} Qbitz. All rights reserved.
             </p>
-            
-            {/* Status */}
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-xs text-gray-400">System Online</span>
-            </div>
           </div>
         </div>
       </div>

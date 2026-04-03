@@ -8,16 +8,68 @@
 require('dotenv').config()
 const cron = require('node-cron')
 const axios = require('axios')
+
+// ── Google Indexing API ───────────────────────────────────────────────────────
+const { GoogleAuth } = require('google-auth-library')
+let _googleAuthClient = null
+
+async function getGoogleAuthClient() {
+  if (_googleAuthClient) return _googleAuthClient
+  try {
+    const auth = new GoogleAuth({
+      keyFile: '/var/www/ai-news/google-indexing-key.json',
+      scopes: ['https://www.googleapis.com/auth/indexing'],
+    })
+    _googleAuthClient = await auth.getClient()
+    return _googleAuthClient
+  } catch (err) {
+    console.error('[INDEXING] Failed to init Google Auth:', err.message)
+    return null
+  }
+}
+
+async function notifyGoogleIndexing(url) {
+  try {
+    const client = await getGoogleAuthClient()
+    if (!client) return
+    const res = await client.request({
+      url: 'https://indexing.googleapis.com/v3/urlNotifications:publish',
+      method: 'POST',
+      data: { url, type: 'URL_UPDATED' },
+    })
+    console.log(`[INDEXING] Notified Google: ${url.slice(0, 70)} → ${res.data?.urlNotificationMetadata?.url ? 'OK' : JSON.stringify(res.data)}`)
+  } catch (err) {
+    console.error(`[INDEXING] Failed for ${url.slice(0, 70)}: ${err.message}`)
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const Parser = require('rss-parser')
 const cheerio = require('cheerio')
 const { pool } = require('./lib/db-worker')
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL_ID || 'openrouter/free'
+const OPENROUTER_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_ID || 'z-ai/glm-4.5-air:free'
+// Fallback models jika primary rate-limited
+const OPENROUTER_FALLBACK_MODELS = [
+  'z-ai/glm-4.5-air:free',
+  'stepfun/step-3.5-flash:free',
+  'meta-llama/llama-3.3-8b-instruct:free',
+]
+let _currentModelIndex = 0
+function getNextModel() {
+  const model = OPENROUTER_FALLBACK_MODELS[_currentModelIndex % OPENROUTER_FALLBACK_MODELS.length]
+  return model
+}
+function rotateModel() {
+  _currentModelIndex = (_currentModelIndex + 1) % OPENROUTER_FALLBACK_MODELS.length
+  console.warn(`[ID-WORKER] Rotating to fallback model: ${OPENROUTER_FALLBACK_MODELS[_currentModelIndex]}`)
+}
+const OPENROUTER_MODEL = OPENROUTER_MODEL_PRIMARY
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 
 console.log('[ID-WORKER] Starting Indonesian news worker (OpenRouter AI)')
-console.log('[ID-WORKER] Model:', OPENROUTER_MODEL)
+console.log('[ID-WORKER] Model primary:', OPENROUTER_MODEL_PRIMARY, '| Fallbacks:', OPENROUTER_FALLBACK_MODELS.length)
 if (!OPENROUTER_API_KEY) console.error('[ID-WORKER] WARNING: OPENROUTER_API_KEY not set!')
 
 // ============================================
@@ -57,15 +109,15 @@ const ID_FEEDS = [
     { id: 'bz-002', name: 'CNBC', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html' },
 
     // ===== OLAHRAGA — SEPAK BOLA (internasional, tanpa watermark) =====
-    { id: 'sp-001', name: 'Bola.net', url: 'https://www.bola.net/rss/rss.html', noSourceImage: true },
-    { id: 'sp-002', name: 'Bola.com', url: 'https://www.bola.com/rss', noSourceImage: true },
+    { id: 'sp-001', name: 'Liga Olahraga', url: 'https://www.ligaolahraga.com/feed', noSourceImage: true },
+    { id: 'sp-002', name: 'Detik Sport', url: 'https://sport.detik.com/rss.xml', noSourceImage: false },
     { id: 'sp-003', name: 'Tribun Sport', url: 'https://www.tribunnews.com/rss/sport', noSourceImage: true },
     { id: 'sp-004', name: 'ESPN FC', url: 'https://www.espn.com/espn/rss/soccer/news' },
     { id: 'sp-005', name: 'BBC Sport Football', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml' },
     { id: 'sp-006', name: 'Sky Sports Football', url: 'https://www.skysports.com/rss/12040' },
     { id: 'sp-007', name: 'BBC Premier League', url: 'https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml' },
     { id: 'sp-008', name: '90min Football', url: 'https://www.90min.com/posts.rss' },
-    { id: 'sp-009', name: 'Goal.com', url: 'https://www.goal.com/feeds/en/news' },
+    { id: 'sp-009', name: 'CNN Indonesia Sport', url: 'https://www.cnnindonesia.com/olahraga/rss' },
     { id: 'sp-010', name: 'BBC Football Champions League', url: 'https://feeds.bbci.co.uk/sport/football/european/rss.xml' },
 
     // ===== OLAHRAGA — MULTI SPORT =====
@@ -73,7 +125,7 @@ const ID_FEEDS = [
     { id: 'ms-002', name: 'BBC Sport', url: 'https://feeds.bbci.co.uk/sport/rss.xml' },
     { id: 'ms-003', name: 'Sky Sports', url: 'https://www.skysports.com/rss/12433' },
     { id: 'ms-004', name: 'BWF Badminton', url: 'https://bwfbadminton.com/feed/' },
-    { id: 'ms-005', name: 'ATP Tennis', url: 'https://www.atptour.com/en/media/rss-feed/xml-feed' },
+    { id: 'ms-005', name: 'Republika Sport', url: 'https://www.republika.co.id/rss/sport' },
     { id: 'ms-006', name: 'NBA', url: 'https://www.nba.com/news/rss.xml' },
     { id: 'ms-007', name: 'ESPN Motorsport', url: 'https://www.espn.com/espn/rss/f1/news' },
 ]
@@ -88,6 +140,17 @@ const CRAWL_CONFIG = {
 // ============================================
 // HELPERS
 // ============================================
+function safeParsePubDate(pubDate) {
+    if (!pubDate) return new Date().toISOString()
+    try {
+        const d = new Date(pubDate)
+        if (isNaN(d.getTime())) return new Date().toISOString()
+        return d.toISOString()
+    } catch {
+        return new Date().toISOString()
+    }
+}
+
 async function fetchRSS(url) {
     try {
         const parser = new Parser({ timeout: 15000 })
@@ -96,7 +159,7 @@ async function fetchRSS(url) {
             title: item.title || 'Untitled',
             content: item.contentSnippet || item.content || item.description || '',
             link: item.link || '',
-            pubDate: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+            pubDate: safeParsePubDate(item.pubDate || item.isoDate),
             sourceImage: extractImageFromFeedItem(item),
         }))
     } catch (error) {
@@ -114,28 +177,48 @@ JUDUL SUMBER: ${sourceTitle}
 KONTEN SUMBER: ${sourceContent.slice(0, 1800)}
 ---
 
-Tulis output PERSIS dalam format berikut (ganti teks dalam kurung siku, jangan tulis kurung sikunya):
+Tulis output PERSIS dalam format berikut:
 
-[Judul artikel dalam BAHASA INDONESIA, SEO-friendly, 55-90 karakter]
+JUDUL: Tulis judul artikel di sini dalam BAHASA INDONESIA, SEO-friendly, 55-90 karakter
 
-IMAGE_HINT: [4-6 kata BAHASA INGGRIS untuk foto Unsplash]
+IMAGE_HINT: 4-6 kata BAHASA INGGRIS untuk foto Unsplash
 
-CATEGORY: [1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Sepakbola | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita]
+EXCERPT: 1-2 kalimat teaser dalam BAHASA INDONESIA, 120-155 karakter
 
-[Isi artikel minimal 500 kata dalam BAHASA INDONESIA menggunakan Markdown]
+CATEGORY: 1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Sepakbola | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita
+
+ARTIKEL:
+Isi artikel minimal 500 kata dalam BAHASA INDONESIA menggunakan Markdown
 
 ATURAN WAJIB:
-- SELURUH judul dan isi artikel HARUS dalam bahasa Indonesia — DILARANG menulis dalam bahasa Inggris
+- SELURUH judul, excerpt, dan isi artikel HARUS dalam bahasa Indonesia — DILARANG menulis dalam bahasa Inggris
 - Hanya IMAGE_HINT yang boleh dalam bahasa Inggris
 - Terjemahkan semua istilah teknis ke padanan Indonesia atau beri penjelasan
 
-ATURAN JUDUL:
-- Spesifik: sebut siapa/apa/angka penting
-- Kata kerja aktif: Tembus, Luncurkan, Capai, Catat, Umumkan, Lampaui, Terhenti, Kalahkan
+ATURAN JUDUL (wajib CTR tinggi, bahasa alami):
+- Spesifik: sebut siapa/apa/angka penting jika tersedia di artikel
+- Gunakan kata kerja yang LAZIM dipakai media berita Indonesia, sesuai konteks:
+  * Olahraga: Tumbang, Takluk, Menang, Kalahkan, Hancurkan, Hantam, Susul, Geser, Cedera, Absen, Comeback, Kunci, Lolos, Tersingkir, Raih
+  * Politik/Hukum: Ditetapkan, Ditangkap, Dicopot, Mundur, Lantik, Sahkan, Tolak, Gugat, Vonis, Pecat
+  * Bisnis/Ekonomi: Akuisisi, Rugi, Untung, Bangkrut, PHK, Ekspansi, Investasi, Merger, Naik, Turun
+  * Teknologi: Luncurkan, Rilis, Blokir, Bajak, Bocor, Perbarui, Tutup, Akuisisi
+  * Umum: Ungkap, Konfirmasi, Bantah, Akui, Peringatkan, Desak, Serukan
+- HINDARI kata kerja yang janggal/tidak natural: "Tersandung Kalah", "Terhenti Menang", "Lampaui Kalahkan"
 - JANGAN mulai dengan: The, A, An, Sebuah, Ini adalah
 - JANGAN sertakan tanggal, sumber, atau label apapun dalam judul
-- Contoh BAIK: "Bitcoin Tembus $100.000 Pertama Kalinya dalam Sejarah"
-- Contoh BURUK: "Meta Boosts Code Review Accuracy to 93%"
+- GUNAKAN TEKNIK HIGH-CTR (pilih yang paling sesuai):
+  * Sertakan angka/data jika ada: "73% Pengguna...", "5 Negara yang...", "Rp 2 Triliun..."
+  * Curiosity gap: "Alasan Sebenarnya...", "Apa yang Benar-Benar Terjadi Saat...", "Cara X Berhasil..."
+  * Power words: "Akhirnya Terungkap", "Diam-Diam", "Mengejutkan", "Membuktikan"
+  * Tunjukkan dampak: "...dan Ini Bisa Ubah Segalanya", "...yang Mengancam Jutaan Orang"
+  * Konflik/ketegangan: "Menolak", "Menentang", "Membongkar", "Menggugat"
+- Contoh BAIK — alami dan CTR tinggi:
+  * "Bitcoin Tembus $100.000 Pertama Kali, Analis Ungkap Faktor Pemicunya"
+  * "Doncic Cedera Hamstring, Lakers Tumbang di Kandang Thunder"
+  * "Chelsea Pecat Fernandez Usai Insiden Panas yang Guncang Internal Klub"
+  * "Ilmuwan Akhirnya Ungkap Alasan 1 dari 3 Terapi Kanker Berhenti Bekerja"
+  * "Cara Meta Diam-Diam Bangun AI yang Kalahkan GPT-4 di Semua Benchmark"
+- Contoh BURUK: "Lakers Tersandung Kalah di Kandang", "Kunjungan Kehormatan", "Situasi Terkini", "Meta Boosts Code Review""
 
 ATURAN IMAGE_HINT:
 - WAJIB bahasa Inggris (untuk pencarian foto Unsplash)
@@ -144,6 +227,18 @@ ATURAN IMAGE_HINT:
 - Contoh BURUK: "remote office teamwork", "peaceful reconciliation", "national issue", "leadership challenge"
 - Sesuaikan dengan topik artikel: korupsi → "courtroom justice gavel", olahraga → jenis olahraga spesifik, teknologi → perangkat spesifik
 
+ATURAN EXCERPT (wajib compelling):
+- WAJIB bahasa Indonesia
+- 1-2 kalimat yang bikin pembaca penasaran/tertarik klik
+- Jangan ulangi judul — tambahkan info baru atau bangun ketegangan
+- Highlight sudut paling mengejutkan atau paling berdampak dari berita
+- JANGAN mulai dengan: "Artikel ini membahas", "Dalam artikel ini", "Simak informasi"
+- Contoh BAIK:
+  * "Dokumen internal bocor ungkap pengujian dilakukan berbulan-bulan sebelum publik tahu — dan hasilnya mengejutkan para pembuatnya sendiri."
+  * "Keputusan diambil setelah rapat tertutup enam jam yang berakhir dengan ketegangan tinggi di antara petinggi klub."
+  * "Para ahli memperingatkan putusan ini bisa berdampak pada jutaan pengguna di lebih dari 40 negara."
+- Contoh BURUK: "Baca artikel ini untuk mengetahui lebih lanjut.", "Chelsea memecat pemain mereka."
+
 ATURAN ARTIKEL:
 - Gaya jurnalistik profesional, bahasa formal tapi mudah dipahami
 - Sertakan konteks, dampak bagi Indonesia, data/angka jika relevan
@@ -151,77 +246,113 @@ ATURAN ARTIKEL:
 - JANGAN heading generik: Pendahuluan, Kesimpulan, Latar Belakang
 - Akhiri dengan paragraf penutup yang kuat`
 
-    try {
-        const response = await axios.post(
+    const orMessages = [
+        { role: 'system', content: 'Kamu adalah jurnalis profesional Indonesia. WAJIB menulis SELURUH output dalam bahasa Indonesia, kecuali IMAGE_HINT. JANGAN gunakan tanda kurung siku [] dalam output. Ikuti format yang diberikan dengan tepat. Jangan tambahkan preamble, penjelasan, atau komentar apapun.' },
+        { role: 'user', content: prompt }
+    ]
+    const orHeaders = {
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://qbitznews.com',
+        'X-Title': 'QbitzNews Indonesian Worker',
+    }
+
+    async function callOpenRouter(modelToUse) {
+        const res = await axios.post(
             OPENROUTER_ENDPOINT,
-            {
-                model: OPENROUTER_MODEL,
-                messages: [
-                    { role: 'system', content: 'Kamu adalah jurnalis profesional Indonesia. WAJIB menulis SELURUH output dalam bahasa Indonesia, kecuali IMAGE_HINT yang harus dalam bahasa Inggris. Mulai langsung dengan judul bahasa Indonesia. Jangan tambahkan preamble, penjelasan, atau komentar apapun.' },
-                    { role: 'user', content: prompt }
-                ],
-                max_tokens: 4096,
-                temperature: 0.7,
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': 'https://qbitznews.com',
-                    'X-Title': 'QbitzNews Indonesian Worker',
-                },
-                timeout: 120000
-            }
+            { model: modelToUse, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
+            { headers: { ...orHeaders, 'Authorization': `Bearer ${OPENROUTER_API_KEY}` }, timeout: 120000 }
         )
+        return res
+    }
+
+    try {
+        const response = await callOpenRouter(getNextModel())
 
         const fullContent = response.data?.choices?.[0]?.message?.content || ''
         if (!fullContent) throw new Error('Empty content from OpenRouter')
 
-        // Parse IMAGE_HINT and CATEGORY
+        // === PARSE SEMUA METADATA FIELDS SEKALIGUS ===
+        const VALID_CATEGORIES = new Set(['Kripto & Blockchain', 'Teknologi', 'Politik', 'Ekonomi', 'Olahraga', 'Sepakbola', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Hukum & Kriminal', 'Lingkungan', 'Berita'])
+        const allLines = fullContent.split('\n')
+
+        // Scan SEMUA baris untuk cari metadata fields (IMAGE_HINT, EXCERPT, CATEGORY)
+        // Hapus dari rawLines supaya tidak masuk ke body/title
         let aiImageHint = ''
         let aiCategories = []
-        const VALID_CATEGORIES = new Set(['Kripto & Blockchain', 'Teknologi', 'Politik', 'Ekonomi', 'Olahraga', 'Sepakbola', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Hukum & Kriminal', 'Lingkungan', 'Berita'])
-        const rawLines = fullContent.split('\n')
-        for (let i = rawLines.length - 1; i >= 0; i--) {
-            const line = rawLines[i].trim()
+        let aiExcerpt = ''
+        const metadataLineIndices = new Set()
+
+        let aiTitleFromField = ''
+        for (let i = 0; i < allLines.length; i++) {
+            const line = allLines[i].trim()
+            const titleMatch = line.match(/^judul\s*[:\-]\s*(.+)$/i)
+            if (titleMatch && titleMatch[1].trim().length > 10) {
+                aiTitleFromField = titleMatch[1].trim().replace(/^\[|\]$/g, '').trim()
+                metadataLineIndices.add(i); continue
+            }
             const imgMatch = line.match(/^image[_\s-]?hint\s*[:\-]\s*(.+)$/i)
-            if (imgMatch) { aiImageHint = imgMatch[1].trim(); rawLines.splice(i, 1); continue }
+            if (imgMatch) { aiImageHint = imgMatch[1].trim(); metadataLineIndices.add(i); continue }
             const catMatch = line.match(/^category\s*[:\-]\s*(.+)$/i)
             if (catMatch) {
                 aiCategories = catMatch[1].split(',').map(c => c.trim()).filter(c => VALID_CATEGORIES.has(c))
-                rawLines.splice(i, 1)
+                metadataLineIndices.add(i); continue
+            }
+            const excMatch = line.match(/^excerpt\s*[:\-]\s*(.+)$/i)
+            if (excMatch && excMatch[1].trim().length > 20) {
+                aiExcerpt = excMatch[1].trim()
+                metadataLineIndices.add(i); continue
+            }
+            // Tandai baris ARTIKEL: sebagai pemisah body
+            if (/^artikel\s*[:\-]?$/i.test(line)) {
+                metadataLineIndices.add(i); continue
             }
         }
 
-        // Extract title (first non-empty, non-metadata line)
+        // Buat rawLines tanpa baris metadata
+        const rawLines = allLines.filter((_, i) => !metadataLineIndices.has(i))
+
+        // Extract title: prioritas dari field JUDUL:, fallback ke baris pertama
         let title = ''
         let contentStartIndex = 0
-        // Patterns that indicate a line is NOT a title
-        const skipLinePattern = /^(image[_\s-]?hint|category|source|sumber|tanggal|date|by\s|author|baris\s*\d|\d{1,2}\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)|january|february|march|april|may|june|july|august|september|october|november|december)/i
-        const dateOnlyPattern = /^\d{1,2}[\s\/\-]+(\d{1,2}[\s\/\-]+)?\d{2,4}$/
-        for (let i = 0; i < Math.min(rawLines.length, 12); i++) {
-            const line = rawLines[i].trim()
-            if (!line) continue
-            if (skipLinePattern.test(line) || dateOnlyPattern.test(line)) { rawLines.splice(i, 1); i--; continue }
-            // Clean any leaked prompt artifacts from title
-            title = line
-                .replace(/^#+\s*/, '')           // markdown heading
-                .replace(/^baris\s*\d+\s*:?\s*/i, '') // BARIS 1: prefix
-                .replace(/^\*\*(.+)\*\*$/, '$1') // **bold**
-                .replace(/\*\*/g, '')             // remaining asterisks
-                .trim()
-            contentStartIndex = i + 1
-            break
-        }
-        if (!title || title.length < 20) title = sourceTitle.split(' - ')[0].trim().slice(0, 90)
-        if (title.length > 95) title = title.slice(0, 92).trim() + '...'
 
-        // Clean body
+        if (aiTitleFromField && aiTitleFromField.length >= 15) {
+            title = aiTitleFromField
+            contentStartIndex = 0
+        } else {
+            const skipLinePattern = /^(judul|image[_\s-]?hint|category|excerpt|artikel|source|sumber|tanggal|date|by\s|author|baris\s*\d|\d{1,2}\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)|january|february|march|april|may|june|july|august|september|october|november|december)/i
+            const dateOnlyPattern = /^\d{1,2}[\s\/\-]+(\d{1,2}[\s\/\-]+)?\d{2,4}$/
+            for (let i = 0; i < Math.min(rawLines.length, 12); i++) {
+                const line = rawLines[i].trim()
+                if (!line) continue
+                if (skipLinePattern.test(line) || dateOnlyPattern.test(line)) continue
+                title = line
+                    .replace(/^#+\s*/, '')
+                    .replace(/^baris\s*\d+\s*:?\s*/i, '')
+                    .replace(/^\*\*(.+)\*\*$/, '$1')
+                    .replace(/\*\*/g, '')
+                    .trim()
+                contentStartIndex = i + 1
+                break
+            }
+        }
+
+        // Safety net: strip bracket yang ikut tertulis oleh AI (e.g. [Judul artikel...])
+        title = title.replace(/^\[(.+)\]$/, '$1').trim()
+
+        if (!title || title.length < 15) title = sourceTitle.split(' - ')[0].trim().slice(0, 90)
+        if (title.length > 120) title = title.slice(0, 117).trim() + '...'
+
+        // Clean body — ambil dari setelah judul, tanpa baris metadata
         const bodyLines = rawLines.slice(contentStartIndex)
         while (bodyLines.length > 0 && !bodyLines[0].trim()) bodyLines.shift()
         let content = bodyLines.join('\n').trim()
+
+        // Bersihkan sisa metadata yang mungkin masih masuk ke body (safety net)
         content = content
+            .replace(/^judul\s*[:\-][^\n]*/gim, '')
+            .replace(/^artikel\s*[:\-]?\s*/gim, '')
             .replace(/^image[_\s-]?hint\s*[:\-][^\n]*/gim, '')
+            .replace(/^excerpt\s*[:\-][^\n]*/gim, '')
             .replace(/^category\s*[:\-][^\n]*/gim, '')
             .replace(/^baris\s*\d+\s*[:\-]?\s*/gim, '')
             .replace(/^source\s*[:\-][^\n]*/gim, '')
@@ -229,17 +360,60 @@ ATURAN ARTIKEL:
             .replace(/\n{3,}/g, '\n\n')
             .trim()
 
-        // Extract excerpt
+        // Excerpt: prioritas AI-generated, fallback dari paragraf pertama
         let excerpt = ''
-        for (const line of content.split('\n')) {
-            const t = line.trim()
-            if (!t || t.startsWith('#') || t.startsWith('|') || t.startsWith('-') || t.startsWith('*')) continue
-            excerpt = t.replace(/\*\*/g, '').trim()
-            break
+        if (aiExcerpt) {
+            excerpt = aiExcerpt
+            console.log(`[EXCERPT] Menggunakan AI-generated excerpt (${excerpt.length} chars)`)
+        } else {
+            for (const line of content.split('\n')) {
+                const t = line.trim()
+                if (!t || t.startsWith('#') || t.startsWith('|') || t.startsWith('-') || t.startsWith('*')) continue
+                excerpt = t.replace(/\*\*/g, '').trim()
+                break
+            }
+            if (!excerpt) excerpt = `Baca artikel lengkap tentang ${title}.`
+            excerpt = excerpt.split('. ').slice(0, 2).join('. ')
+            if (!excerpt.endsWith('.')) excerpt += '.'
+            console.log(`[EXCERPT] Menggunakan fallback paragraph excerpt`)
         }
-        if (!excerpt) excerpt = `Baca artikel lengkap tentang ${title}.`
-        excerpt = excerpt.split('. ').slice(0, 2).join('. ')
-        if (!excerpt.endsWith('.')) excerpt += '.'
+        // Potong excerpt di batas kalimat atau batas kata, max 155 chars
+        if (excerpt.length > 155) {
+            // Coba potong di akhir kalimat (. ! ?)
+            const sentenceEnd = excerpt.slice(0, 155).search(/[.!?][^.!?]*$/)
+            if (sentenceEnd > 80) {
+                excerpt = excerpt.slice(0, sentenceEnd + 1).trim()
+            } else {
+                // Fallback: potong di akhir kata terakhir, tambah ...
+                excerpt = excerpt.slice(0, 152).replace(/\s+\S*$/, '').trimEnd() + '...'
+            }
+        }
+
+        // Fallback excerpt: ambil dari paragraf pertama konten bersih
+        if (!excerpt) {
+            for (const line of content.split('\n')) {
+                const t = line.trim()
+                if (!t || t.startsWith('#') || t.startsWith('|') || t.startsWith('-') || t.startsWith('*')) continue
+                excerpt = t.replace(/\*\*/g, '').trim()
+                break
+            }
+            if (!excerpt) excerpt = `Baca artikel lengkap tentang ${title}.`
+            excerpt = excerpt.split('. ').slice(0, 2).join('. ')
+            if (!excerpt.endsWith('.')) excerpt += '.'
+            console.log(`[EXCERPT] Menggunakan fallback paragraph excerpt`)
+        }
+        // Trim to max 155 chars
+        // Potong excerpt di batas kalimat atau batas kata, max 155 chars
+        if (excerpt.length > 155) {
+            // Coba potong di akhir kalimat (. ! ?)
+            const sentenceEnd = excerpt.slice(0, 155).search(/[.!?][^.!?]*$/)
+            if (sentenceEnd > 80) {
+                excerpt = excerpt.slice(0, sentenceEnd + 1).trim()
+            } else {
+                // Fallback: potong di akhir kata terakhir, tambah ...
+                excerpt = excerpt.slice(0, 152).replace(/\s+\S*$/, '').trimEnd() + '...'
+            }
+        }
 
         const usage = response.data?.usage || {}
         const finishReason = response.data?.choices?.[0]?.finish_reason || ''
@@ -284,8 +458,25 @@ ATURAN ARTIKEL:
         }
     } catch (err) {
         if (err.response?.status === 429) {
-            console.warn('[ID-WORKER] OpenRouter rate limit — waiting 30s')
-            await new Promise(r => setTimeout(r, 30000))
+            console.warn(`[ID-WORKER] OpenRouter rate limit — rotating model and retrying...`)
+            rotateModel()
+            try {
+                const retryModel = getNextModel()
+                const retryRes = await callOpenRouter(retryModel)
+                const retryChoice = retryRes.data.choices?.[0]
+                if (retryChoice?.message?.content) {
+                    console.log(`[ID-WORKER] Retry OK with model: ${retryModel}`)
+                    const usage = retryRes.data.usage || {}
+                    return {
+                        rawText: retryChoice.message.content,
+                        tokens: { prompt: usage.prompt_tokens || 0, completion: usage.completion_tokens || 0, total: usage.total_tokens || 0 },
+                        cost: (usage.total_tokens || 0) * 0.00000015,
+                        model: retryModel,
+                    }
+                }
+            } catch (retryErr) {
+                console.error(`[ID-WORKER] Retry also failed: ${retryErr.message}`)
+            }
         }
         console.error(`[ID-WORKER] OpenRouter error (${err.response?.status || 'network'}): ${err.response?.data?.error?.message || err.message}`)
         throw err
@@ -521,7 +712,7 @@ async function saveArticleId(article) {
       prompt_tokens, completion_tokens, total_tokens, estimated_cost,
       featured_image, excerpt, author, views, language)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-     RETURNING id`,
+     RETURNING id, slug`,
         [
             article.title,
             article.content,
@@ -703,14 +894,15 @@ async function crawlIndonesian() {
                         ;['utm_source', 'utm_medium', 'utm_campaign', 'ref', 'source'].forEach(p => u.searchParams.delete(p))
                     normalizedLink = (u.origin + u.pathname + (u.search !== '?' ? u.search : '')).replace(/\/$/, '')
                 } catch { }
-                const dup = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(source_url))=LOWER(TRIM($1)) LIMIT 1", [normalizedLink])
-                if (dup.rows.length > 0) { console.log(`[ID-WORKER] Skip dup URL: ${normalizedLink.slice(0, 60)}`); item.link = normalizedLink; continue }
+                // Cek duplikat hanya untuk bahasa ID — URL yang sama boleh dibuat versi EN dan ID
+                const dup = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(source_url))=LOWER(TRIM($1)) AND language='id' LIMIT 1", [normalizedLink])
+                if (dup.rows.length > 0) { console.log(`[ID-WORKER] Skip dup URL (id): ${normalizedLink.slice(0, 60)}`); item.link = normalizedLink; continue }
                 item.link = normalizedLink
             }
 
-            // Dedup: check title
-            const dupTitle = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(title))=LOWER(TRIM($1)) LIMIT 1", [item.title])
-            if (dupTitle.rows.length > 0) { console.log(`[ID-WORKER] Skip dup title: ${item.title.slice(0, 50)}`); continue }
+            // Dedup: check title (hanya dalam bahasa ID)
+            const dupTitle = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(title))=LOWER(TRIM($1)) AND language='id' LIMIT 1", [item.title])
+            if (dupTitle.rows.length > 0) { console.log(`[ID-WORKER] Skip dup title (id): ${item.title.slice(0, 50)}`); continue }
 
             // Filter promosi — cek source title SEBELUM panggil AI (hemat token)
             const prePromo = detectPromotionalContent(item.title, item.content)
@@ -723,9 +915,9 @@ async function crawlIndonesian() {
                 console.log(`[ID-WORKER] → Generating: "${item.title.slice(0, 60)}"`)
                 const generated = await generateArticleWithOpenRouter(item.title, item.content, feed.name)
 
-                // Dedup: check generated title
-                const dupGen = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(title))=LOWER(TRIM($1)) LIMIT 1", [generated.title])
-                if (dupGen.rows.length > 0) { console.log(`[ID-WORKER] Skip dup generated: ${generated.title.slice(0, 50)}`); continue }
+                // Dedup: check generated title (hanya dalam bahasa ID)
+                const dupGen = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(title))=LOWER(TRIM($1)) AND language='id' LIMIT 1", [generated.title])
+                if (dupGen.rows.length > 0) { console.log(`[ID-WORKER] Skip dup generated (id): ${generated.title.slice(0, 50)}`); continue }
 
                 // Filter promosi — cek hasil AI (AI bisa mengubah framing)
                 const postPromo = detectPromotionalContent(generated.title, generated.content)
@@ -781,6 +973,10 @@ async function crawlIndonesian() {
                 console.log(`[ID-WORKER] ✓ #${saved.id} [${categories.join(', ')}] — ${generated.title.slice(0, 60)}`)
                 totalGenerated++
                 fromSource++
+                // Notify Google Indexing API
+                const artSlug = saved.slug || saved.id
+                const artUrl = `https://qbitznews.com/id/articles/${artSlug}`
+                notifyGoogleIndexing(artUrl).catch(() => {})
 
                 // Polite delay
                 await new Promise(r => setTimeout(r, 2000))
