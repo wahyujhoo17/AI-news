@@ -928,6 +928,8 @@ Begin:`
 
     if (seoHeadline.length > 95) seoHeadline = seoHeadline.slice(0, 92).trim() + '...'
 
+    // Strip markdown bold/italic dari judul
+    seoHeadline = seoHeadline.replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s*/, '').trim()
     console.log(`[HEADLINE] Extracted SEO headline (${seoHeadline.length} chars): ${seoHeadline.slice(0, 70)}`)
 
     // === EXTRACT EXCERPT: prioritas dari field EXCERPT: AI-generated ===
