@@ -30,13 +30,13 @@ const ID_FEEDS = [
     { id: 'id-003', name: 'Tempo', url: 'https://rss.tempo.co/nasional', noSourceImage: false },
     { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/berita/nasional', noSourceImage: false },
     { id: 'id-005', name: 'CNN Indonesia', url: 'https://www.cnnindonesia.com/rss', noSourceImage: false },
-    { id: 'id-006', name: 'Republika', url: 'https://www.republika.co.id/rss', noSourceImage: false },
-    { id: 'id-007', name: 'Liputan6', url: 'https://www.liputan6.com/rss/news', noSourceImage: true },
+    { id: 'id-006', name: 'Republika', url: 'https://www.republika.co.id/rss', noSourceImage: true },
+    { id: 'id-007', name: 'Liputan6', url: 'https://www.liputan6.com/rss/news', noSourceImage: false },
     { id: 'id-008', name: 'Tribun News', url: 'https://www.tribunnews.com/rss/nasional', noSourceImage: true },
-    { id: 'id-009', name: 'Google News ID', url: 'https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id', noSourceImage: true },
-    { id: 'id-010', name: 'Jakarta Post', url: 'https://www.thejakartapost.com/feed', noSourceImage: true },
+    { id: 'id-009', name: 'Google News ID', url: 'https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id', noSourceImage: false },
+    { id: 'id-010', name: 'Jakarta Post', url: 'https://www.thejakartapost.com/feed', noSourceImage: false },
     { id: 'id-011', name: 'Merdeka', url: 'https://www.merdeka.com/feed/', noSourceImage: false },
-    { id: 'id-012', name: 'Suara', url: 'https://www.suara.com/rss', noSourceImage: true },
+    { id: 'id-012', name: 'Suara', url: 'https://www.suara.com/rss', noSourceImage: false },
 
     // ===== CRYPTO & BLOCKCHAIN =====
     { id: 'cr-001', name: 'CoinDesk', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/' },
