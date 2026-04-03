@@ -1,24 +1,11 @@
 # Robots.txt for Qbitz AI News Platform
-# Submitted: 2026-03-27
+# Updated: 2026-04-03
 
-# Allow all pages to be crawled
 User-agent: *
 Allow: /
-Allow: /articles/
-Allow: /categories
-Allow: /about
-Allow: /contact
-Allow: /disclaimer
-Allow: /privacy
-Allow: /terms
-Allow: /id
-Allow: /id/
-Allow: /id/articles/
-Allow: /id/categories
-Allow: /sitemap.xml
-Allow: /sitemap-pages.xml
-Allow: /sitemap-news.xml
-Allow: /sitemap-articles/
+# Memastikan Googlebot bisa mengambil file icon Anda
+Allow: /favicon.ico
+Allow: /_next/static/
 Disallow: /api/
 Disallow: /_next/
 Disallow: /.next/
@@ -26,56 +13,26 @@ Disallow: /.next/
 # Sitemaps
 Sitemap: https://qbitznews.com/sitemap.xml
 
-# Crawl delay and request rate
-Crawl-delay: 1
-Request-rate: 30/60
-
-# Google specific
+# Google specific (Hanya instruksi yang didukung)
 User-agent: Googlebot
 Allow: /
-Crawl-delay: 0
-Request-rate: 100/60
 
-# AI crawlers — allow for dataset & AI search indexing
+# AI crawlers — Mendukung indexing AI search (Perplexity, ChatGPT, dll)
 User-agent: GPTBot
 Allow: /
-
 User-agent: ChatGPT-User
 Allow: /
-
 User-agent: OAI-SearchBot
 Allow: /
-
 User-agent: ClaudeBot
 Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
 User-agent: PerplexityBot
 Allow: /
 
-User-agent: YouBot
-Allow: /
-
-User-agent: Applebot
-Allow: /
-
-User-agent: Applebot-Extended
-Allow: /
-
-User-agent: meta-externalagent
-Allow: /
-
-User-agent: FacebookBot
-Allow: /
-
-# Block only scrapers with no SEO/AI value
+# Block scrapers yang membebani server tanpa nilai SEO
 User-agent: Bytespider
 Disallow: /
-
 User-agent: CCBot
 Disallow: /
-
 User-agent: Amazonbot
 Disallow: /
