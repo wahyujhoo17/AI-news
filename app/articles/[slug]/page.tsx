@@ -74,15 +74,24 @@ async function getRecommendedArticles(currentArticle: Article, limit: number = 3
 
       const currentKeywords = currentArticle.title
         .toLowerCase()
+        .replace(/[^\w\s]/gi, '') // Remove punctuation for better matching
         .split(/\s+/)
-        .filter((word) => word.length > 4)
+        // Filter out common stop words to avoid matching irrelevant articles
+        .filter((word) => word.length > 4 && !['about', 'which', 'their', 'there', 'would', 'could', 'should', 'these', 'those'].includes(word))
 
-      const articleTitle = article.title.toLowerCase()
+      const articleTitle = article.title.toLowerCase().replace(/[^\w\s]/gi, '')
       currentKeywords.forEach((keyword) => {
-        if (articleTitle.includes(keyword)) {
+        // Use word boundary matching so "car" doesn't falsely match "carpet"
+        const regex = new RegExp(`\\b${keyword}\\b`)
+        if (regex.test(articleTitle)) {
           score += 30
         }
       })
+
+      // Bonus points if the source is the same
+      if (currentArticle.source_name && article.source_name === currentArticle.source_name) {
+        score += 15
+      }
 
       const articleDate = new Date(article.created_at).getTime()
       const currentDate = new Date().getTime()
