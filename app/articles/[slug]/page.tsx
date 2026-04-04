@@ -160,7 +160,7 @@ function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page")
   return "text-base"
 }
 
-function renderMarkdownContent(content: string, inlineRelated?: React.ReactNode) {
+function renderMarkdownContent(content: string, inlineRelatedItems?: React.ReactNode[]) {
   if (!content) return null
 
   const lines = content.split("\n")
@@ -343,12 +343,15 @@ function renderMarkdownContent(content: string, inlineRelated?: React.ReactNode)
       )
       
       paragraphCount++
-      if (inlineRelated && paragraphCount === 3) {
-        elements.push(
-          <div key={`inline-related`} className="my-6">
-            {inlineRelated}
-          </div>
-        )
+      if (inlineRelatedItems && inlineRelatedItems.length > 0) {
+        if ((paragraphCount % 4 === 3) && inlineRelatedItems.length > Math.floor(paragraphCount / 4)) {
+          const idx = Math.floor(paragraphCount / 4)
+          elements.push(
+            <div key={`inline-related-${idx}`} className="my-6">
+              {inlineRelatedItems[idx]}
+            </div>
+          )
+        }
       }
     }
   }
@@ -532,11 +535,12 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     permanentRedirect(buildArticlePath(article.id, article.title))
   }
 
-  const recommendedArticles = await getRecommendedArticles(article, 6)
-  const readAlsoArticles = recommendedArticles.slice(0, 2)
-  const readAlsoIds = new Set(readAlsoArticles.map((item) => item.id))
+  const recommendedArticles = await getRecommendedArticles(article, 8)
+  const inlineArticles = recommendedArticles.slice(0, 3)
+  const bottomArticles = recommendedArticles.slice(3, 5)
+  const usedIds = new Set([...inlineArticles.map((item) => item.id), ...bottomArticles.map((item) => item.id)])
   const recommendedReadingArticles = recommendedArticles.filter(
-    (item) => Boolean(item.featured_image) && !readAlsoIds.has(item.id)
+    (item) => Boolean(item.featured_image) && !usedIds.has(item.id)
   )
   const isId = article.language === 'id'
   const published = new Date(article.published_at || article.created_at)
@@ -737,32 +741,32 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           <div className="prose prose-invert max-w-none mb-8">
             {renderMarkdownContent(
               article.content,
-              readAlsoArticles.length > 0 ? (
-                <div className="p-4 my-2 border-l-4 border-blue-500/60 bg-blue-500/10 rounded-r text-sm">
+              inlineArticles.map((relItem, idx) => (
+                <div key={`inline-${idx}`} className="p-4 my-2 border-l-4 border-blue-500/60 bg-blue-500/10 rounded-r text-sm">
                   <span className="font-bold text-blue-400 uppercase tracking-wide mr-2">
                     {isId ? 'Baca juga:' : 'Read also:'}
                   </span>
                   <Link
-                    href={buildArticlePath(readAlsoArticles[0].id, readAlsoArticles[0].title)}
+                    href={buildArticlePath(relItem.id, relItem.title)}
                     className="text-blue-300 hover:text-blue-200 hover:underline transition-colors font-medium break-words"
                   >
-                    {readAlsoArticles[0].title}
+                    {relItem.title}
                   </Link>
                 </div>
-              ) : undefined
+              ))
             )}
           </div>
 
           {/* In-content banner ad */}
           <GoogleAd slot="7318960512" format="horizontal" className="my-6" />
 
-          {(readAlsoArticles.length > 1 || article.categories) && (
+          {(bottomArticles.length > 0 || article.categories) && (
             <div className="mb-8 p-4 border-l-4 border-cyan-500/60 bg-cyan-500/5 rounded-r space-y-4">
-              {readAlsoArticles.length > 1 && (
+              {bottomArticles.length > 0 && (
                 <div>
                   <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">{isId ? 'Baca juga artikel lainnya:' : 'Also read:'}</h3>
                   <div className="space-y-2">
-                    {readAlsoArticles.slice(1).map((relatedArticle) => (
+                    {bottomArticles.map((relatedArticle) => (
                       <Link
                         key={relatedArticle.id}
                         href={buildArticlePath(relatedArticle.id, relatedArticle.title)}
