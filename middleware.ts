@@ -47,9 +47,14 @@ function isIndonesianVisitor(request: NextRequest): boolean {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Determine the target language based on the URL path
+  const targetLang = pathname.startsWith("/id") ? "id" : "en"
+  
   // Skip static assets, API, sitemap, already on /id
   if (shouldBypass(pathname)) {
-    return NextResponse.next()
+    const res = NextResponse.next()
+    res.headers.set("x-language", targetLang)
+    return res
   }
 
   // Only redirect the homepage — other pages (categories, about, etc.) stay as-is
@@ -66,7 +71,9 @@ export function middleware(request: NextRequest) {
     return response
   }
 
-  return NextResponse.next()
+  const response = NextResponse.next()
+  response.headers.set("x-language", targetLang)
+  return response
 }
 
 export const config = {

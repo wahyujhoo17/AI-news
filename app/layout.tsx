@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import './globals.css'
 
 const siteUrl = 'https://qbitznews.com'
@@ -14,6 +15,10 @@ export const metadata: Metadata = {
   keywords: ['news', 'ai', 'artificial intelligence', 'qbitz', 'technology'],
   alternates: {
     canonical: '/',
+    languages: {
+      'en': '/',
+      'id': '/id',
+    },
   },
   robots: {
     index: true,
@@ -67,13 +72,16 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const headersList = await headers()
+  const lang = headersList.get('x-language') || 'en'
+
   return (
-    <html lang="id" className="scroll-smooth">
+    <html lang={lang} className="scroll-smooth">
       <head>
         <meta name="google-adsense-account" content="ca-pub-5926049453295619" />
         <meta name="monetag" content="b6acb39d1815c899fc652ab123219fd8" />
