@@ -42,6 +42,21 @@ async function notifyGoogleIndexing(url) {
         console.error(`[INDEXING] Failed for ${url.slice(0, 70)}: ${err.message}`)
     }
 }
+
+async function notifyBingIndexing(url) {
+    const apiKey = process.env.BING_WEBMASTER_API_KEY
+    if (!apiKey) return
+    try {
+        const res = await axios.post(
+            `https://ssl.bing.com/webmaster/api.svc/json/SubmitUrlbatch?apikey=${apiKey}`,
+            { siteUrl: 'https://qbitznews.com', urlList: [url] },
+            { headers: { 'Content-Type': 'application/json' }, timeout: 10000 }
+        )
+        console.log(`[ID-BING] Notified: ${url.slice(0, 70)} → ${res.data?.d || 'OK'}`)
+    } catch (err) {
+        console.error(`[ID-BING] Failed for ${url.slice(0, 70)}: ${err.message}`)
+    }
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Parser = require('rss-parser')
@@ -993,6 +1008,7 @@ async function crawlIndonesian() {
                     ? `https://qbitznews.com/id/articles/${artId}-${artTitleSlug}`
                     : `https://qbitznews.com/id/articles/${artId}`
                 notifyGoogleIndexing(artUrl).catch(() => { })
+                notifyBingIndexing(artUrl).catch(() => { })
 
                 // Polite delay
                 await new Promise(r => setTimeout(r, 2000))
