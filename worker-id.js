@@ -134,8 +134,11 @@ const ID_FEEDS = [
 const CRAWL_CONFIG = {
     TOTAL_BUDGET: 15,       // total artikel target per siklus
     MAX_PER_SOURCE: 2,      // maks artikel per sumber
-    SPORTS_RATIO: 0.40,     // ~40% konten olahraga
-    LOCAL_RATIO: 0.30,      // ~30% berita lokal Indonesia
+    SPORTS_RATIO: 0.20,     // ~20% konten olahraga
+    LOCAL_RATIO: 0.20,      // ~20% berita lokal Indonesia
+    TECH_RATIO: 0.20,       // ~20% teknologi
+    CRYPTO_RATIO: 0.20,     // ~20% crypto
+    // sisanya ~20% untuk berita bisnis / kategori lainnya
 }
 
 // ============================================
@@ -862,19 +865,27 @@ async function crawlIndonesian() {
 
     const sportsBudget = Math.round(CRAWL_CONFIG.TOTAL_BUDGET * CRAWL_CONFIG.SPORTS_RATIO)
     const localBudget = Math.round(CRAWL_CONFIG.TOTAL_BUDGET * CRAWL_CONFIG.LOCAL_RATIO)
-    const otherBudget = Math.max(0, CRAWL_CONFIG.TOTAL_BUDGET - sportsBudget - localBudget)
-    console.log(`[ID-WORKER] Budget: ${CRAWL_CONFIG.TOTAL_BUDGET} | Olahraga: ${sportsBudget} | Lokal: ${localBudget} | Lainnya: ${otherBudget}`)
+    const techBudget = Math.round(CRAWL_CONFIG.TOTAL_BUDGET * CRAWL_CONFIG.TECH_RATIO)
+    const cryptoBudget = Math.round(CRAWL_CONFIG.TOTAL_BUDGET * CRAWL_CONFIG.CRYPTO_RATIO)
+    const otherBudget = Math.max(0, CRAWL_CONFIG.TOTAL_BUDGET - sportsBudget - localBudget - techBudget - cryptoBudget)
+    console.log(`[ID-WORKER] Budget: ${CRAWL_CONFIG.TOTAL_BUDGET} | Olahraga: ${sportsBudget} | Lokal: ${localBudget} | Tech: ${techBudget} | Crypto: ${cryptoBudget} | Lainnya: ${otherBudget}`)
 
     const sportsFeedIds = new Set(['sp-001', 'sp-002', 'sp-003', 'sp-004', 'sp-005', 'sp-006', 'sp-007', 'sp-008', 'sp-009', 'sp-010', 'ms-001', 'ms-002', 'ms-003', 'ms-004', 'ms-005', 'ms-006', 'ms-007'])
     const localFeedIds = new Set(['id-001', 'id-002', 'id-003', 'id-004', 'id-005', 'id-006', 'id-007', 'id-008', 'id-009', 'id-010', 'id-011', 'id-012'])
+    const techFeedIds = new Set(['tc-001', 'tc-002', 'tc-003', 'tc-004', 'tc-005', 'tc-006'])
+    const cryptoFeedIds = new Set(['cr-001', 'cr-002', 'cr-003', 'cr-004'])
 
     const sportsFeeds = ID_FEEDS.filter(f => sportsFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
     const localFeeds = ID_FEEDS.filter(f => localFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
-    const otherFeeds = ID_FEEDS.filter(f => !sportsFeedIds.has(f.id) && !localFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
+    const techFeeds = ID_FEEDS.filter(f => techFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
+    const cryptoFeeds = ID_FEEDS.filter(f => cryptoFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
+    const otherFeeds = ID_FEEDS.filter(f => !sportsFeedIds.has(f.id) && !localFeedIds.has(f.id) && !techFeedIds.has(f.id) && !cryptoFeedIds.has(f.id)).sort(() => Math.random() - 0.5)
 
     let totalGenerated = 0
     let sportsGenerated = 0
     let localGenerated = 0
+    let techGenerated = 0
+    let cryptoGenerated = 0
 
     // Helper: process one feed up to a given remaining budget
     async function processFeed(feed, remaining) {
@@ -977,10 +988,10 @@ async function crawlIndonesian() {
                 fromSource++
                 // Notify Google Indexing API
                 const artId = saved.id
-                const artTitleSlug = (article.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+                const artTitleSlug = (generated.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
                 const artUrl = artTitleSlug
-                  ? `https://qbitznews.com/articles/${artId}-${artTitleSlug}`
-                  : `https://qbitznews.com/articles/${artId}`
+                    ? `https://qbitznews.com/id/articles/${artId}-${artTitleSlug}`
+                    : `https://qbitznews.com/id/articles/${artId}`
                 notifyGoogleIndexing(artUrl).catch(() => { })
 
                 // Polite delay
@@ -1012,7 +1023,25 @@ async function crawlIndonesian() {
     }
     console.log(`[ID-WORKER] Lokal: ${localGenerated}/${localBudget}`)
 
-    // ── 3. Others (crypto, tech, business) fill remaining budget ──────────
+    // ── 3. Tech (target: ~20%) ──────────────────────────
+    for (const feed of techFeeds) {
+        if (techGenerated >= techBudget || totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
+        const n = await processFeed(feed, Math.min(techBudget - techGenerated, CRAWL_CONFIG.TOTAL_BUDGET - totalGenerated))
+        techGenerated += n
+        totalGenerated += n
+    }
+    console.log(`[ID-WORKER] Tech: ${techGenerated}/${techBudget}`)
+
+    // ── 4. Crypto (target: ~20%) ──────────────────────────
+    for (const feed of cryptoFeeds) {
+        if (cryptoGenerated >= cryptoBudget || totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
+        const n = await processFeed(feed, Math.min(cryptoBudget - cryptoGenerated, CRAWL_CONFIG.TOTAL_BUDGET - totalGenerated))
+        cryptoGenerated += n
+        totalGenerated += n
+    }
+    console.log(`[ID-WORKER] Crypto: ${cryptoGenerated}/${cryptoBudget}`)
+
+    // ── 5. Others (business, misc) fill remaining budget ──────────
     for (const feed of otherFeeds) {
         if (totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
         const n = await processFeed(feed, CRAWL_CONFIG.TOTAL_BUDGET - totalGenerated)
