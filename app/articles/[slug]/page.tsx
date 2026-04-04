@@ -160,12 +160,13 @@ function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page")
   return "text-base"
 }
 
-function renderMarkdownContent(content: string) {
+function renderMarkdownContent(content: string, inlineRelated?: React.ReactNode) {
   if (!content) return null
 
   const lines = content.split("\n")
   const elements: React.ReactElement[] = []
   let i = 0
+  let paragraphCount = 0
 
   while (i < lines.length) {
     const line = lines[i]
@@ -340,6 +341,15 @@ function renderMarkdownContent(content: string) {
           {renderInlineMarkdown(paragraphText)}
         </p>
       )
+      
+      paragraphCount++
+      if (inlineRelated && paragraphCount === 3) {
+        elements.push(
+          <div key={`inline-related`} className="my-6">
+            {inlineRelated}
+          </div>
+        )
+      }
     }
   }
 
@@ -725,19 +735,34 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           </div>
 
           <div className="prose prose-invert max-w-none mb-8">
-            {renderMarkdownContent(article.content)}
+            {renderMarkdownContent(
+              article.content,
+              readAlsoArticles.length > 0 ? (
+                <div className="p-4 my-2 border-l-4 border-blue-500/60 bg-blue-500/10 rounded-r text-sm">
+                  <span className="font-bold text-blue-400 uppercase tracking-wide mr-2">
+                    {isId ? 'Baca juga:' : 'Read also:'}
+                  </span>
+                  <Link
+                    href={buildArticlePath(readAlsoArticles[0].id, readAlsoArticles[0].title)}
+                    className="text-blue-300 hover:text-blue-200 hover:underline transition-colors font-medium break-words"
+                  >
+                    {readAlsoArticles[0].title}
+                  </Link>
+                </div>
+              ) : undefined
+            )}
           </div>
 
           {/* In-content banner ad */}
           <GoogleAd slot="7318960512" format="horizontal" className="my-6" />
 
-          {(readAlsoArticles.length > 0 || article.categories) && (
+          {(readAlsoArticles.length > 1 || article.categories) && (
             <div className="mb-8 p-4 border-l-4 border-cyan-500/60 bg-cyan-500/5 rounded-r space-y-4">
-              {readAlsoArticles.length > 0 && (
+              {readAlsoArticles.length > 1 && (
                 <div>
-                  <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">{isId ? 'Baca juga:' : 'Read also:'}</h3>
+                  <h3 className="text-sm font-bold text-cyan-300 mb-3 uppercase tracking-wider">{isId ? 'Baca juga artikel lainnya:' : 'Also read:'}</h3>
                   <div className="space-y-2">
-                    {readAlsoArticles.map((relatedArticle) => (
+                    {readAlsoArticles.slice(1).map((relatedArticle) => (
                       <Link
                         key={relatedArticle.id}
                         href={buildArticlePath(relatedArticle.id, relatedArticle.title)}

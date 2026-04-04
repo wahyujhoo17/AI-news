@@ -38,16 +38,14 @@ export default function GoogleAd({
   }, [])
 
   return (
-    <div className={"overflow-hidden " + className}>
-      <ins
-        ref={insRef}
-        className="adsbygoogle block"
-        style={style || { display: "block" }}
-        data-ad-client="ca-pub-5926049453295619"
-        data-ad-slot={slot}
-        data-ad-format={format}
-        data-full-width-responsive={fullWidthResponsive ? "true" : "false"}
-      />
-    </div>
+    <ins
+      ref={insRef}
+      className={`adsbygoogle block overflow-hidden [&[data-ad-status="unfilled"]]:!hidden ${className}`}
+      style={style || { display: "block" }}
+      data-ad-client="ca-pub-5926049453295619"
+      data-ad-slot={slot}
+      data-ad-format={format}
+      data-full-width-responsive={fullWidthResponsive ? "true" : "false"}
+    />
   )
 }
