@@ -14,33 +14,33 @@ const { GoogleAuth } = require('google-auth-library')
 let _googleAuthClient = null
 
 async function getGoogleAuthClient() {
-  if (_googleAuthClient) return _googleAuthClient
-  try {
-    const auth = new GoogleAuth({
-      keyFile: '/var/www/ai-news/google-indexing-key.json',
-      scopes: ['https://www.googleapis.com/auth/indexing'],
-    })
-    _googleAuthClient = await auth.getClient()
-    return _googleAuthClient
-  } catch (err) {
-    console.error('[INDEXING] Failed to init Google Auth:', err.message)
-    return null
-  }
+    if (_googleAuthClient) return _googleAuthClient
+    try {
+        const auth = new GoogleAuth({
+            keyFile: '/var/www/ai-news/google-indexing-key.json',
+            scopes: ['https://www.googleapis.com/auth/indexing'],
+        })
+        _googleAuthClient = await auth.getClient()
+        return _googleAuthClient
+    } catch (err) {
+        console.error('[INDEXING] Failed to init Google Auth:', err.message)
+        return null
+    }
 }
 
 async function notifyGoogleIndexing(url) {
-  try {
-    const client = await getGoogleAuthClient()
-    if (!client) return
-    const res = await client.request({
-      url: 'https://indexing.googleapis.com/v3/urlNotifications:publish',
-      method: 'POST',
-      data: { url, type: 'URL_UPDATED' },
-    })
-    console.log(`[INDEXING] Notified Google: ${url.slice(0, 70)} → ${res.data?.urlNotificationMetadata?.url ? 'OK' : JSON.stringify(res.data)}`)
-  } catch (err) {
-    console.error(`[INDEXING] Failed for ${url.slice(0, 70)}: ${err.message}`)
-  }
+    try {
+        const client = await getGoogleAuthClient()
+        if (!client) return
+        const res = await client.request({
+            url: 'https://indexing.googleapis.com/v3/urlNotifications:publish',
+            method: 'POST',
+            data: { url, type: 'URL_UPDATED' },
+        })
+        console.log(`[INDEXING] Notified Google: ${url.slice(0, 70)} → ${res.data?.urlNotificationMetadata?.url ? 'OK' : JSON.stringify(res.data)}`)
+    } catch (err) {
+        console.error(`[INDEXING] Failed for ${url.slice(0, 70)}: ${err.message}`)
+    }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -49,21 +49,22 @@ const cheerio = require('cheerio')
 const { pool } = require('./lib/db-worker')
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY
-const OPENROUTER_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_ID || 'z-ai/glm-4.5-air:free'
+const OPENROUTER_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_ID || 'openai/gpt-oss-20b:free'
 // Fallback models jika primary rate-limited
 const OPENROUTER_FALLBACK_MODELS = [
-  'z-ai/glm-4.5-air:free',
-  'stepfun/step-3.5-flash:free',
-  'meta-llama/llama-3.3-8b-instruct:free',
+    'openai/gpt-oss-20b:free',
+    'openai/gpt-oss-120b:free',
+    'stepfun/step-3.5-flash:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
 ]
 let _currentModelIndex = 0
 function getNextModel() {
-  const model = OPENROUTER_FALLBACK_MODELS[_currentModelIndex % OPENROUTER_FALLBACK_MODELS.length]
-  return model
+    const model = OPENROUTER_FALLBACK_MODELS[_currentModelIndex % OPENROUTER_FALLBACK_MODELS.length]
+    return model
 }
 function rotateModel() {
-  _currentModelIndex = (_currentModelIndex + 1) % OPENROUTER_FALLBACK_MODELS.length
-  console.warn(`[ID-WORKER] Rotating to fallback model: ${OPENROUTER_FALLBACK_MODELS[_currentModelIndex]}`)
+    _currentModelIndex = (_currentModelIndex + 1) % OPENROUTER_FALLBACK_MODELS.length
+    console.warn(`[ID-WORKER] Rotating to fallback model: ${OPENROUTER_FALLBACK_MODELS[_currentModelIndex]}`)
 }
 const OPENROUTER_MODEL = OPENROUTER_MODEL_PRIMARY
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
@@ -430,14 +431,15 @@ ATURAN ARTIKEL:
             throw new Error(`Konten terlalu pendek (${wordCount} kata, min 200) — tidak disimpan: "${title.slice(0, 60)}"`)
         }
 
-        // 3. Kalimat terakhir terpotong — tidak diakhiri dengan tanda baca penutup
+        // 3. Kalimat terakhir terpotong — hanya throw jika benar-benar terpotong di tengah kata
         const trimmedContent = content.trimEnd()
         const lastChar = trimmedContent.slice(-1)
-        const incompleteEnding = !/[.!?"'\)\]»]/.test(lastChar)
-        // Juga cek apakah kata terakhir seperti potongan di tengah kalimat
+        // Karakter valid penutup: tanda baca, huruf, angka, tanda kutip, kurung tutup
+        const incompleteEnding = !/[.!?"'\)\]»\*\-a-zA-Z0-9]/.test(lastChar)
+        // Cek baris terakhir: terpotong hanya kalau diakhiri koma atau kata sambung
         const lastLine = trimmedContent.split('\n').pop()?.trim() || ''
-        const lastLineIncomplete = lastLine.length > 0 && lastLine.length < 30 && !/[.!?]$/.test(lastLine) && !lastLine.startsWith('#')
-        if (incompleteEnding || lastLineIncomplete) {
+        const endsWithConjunction = /,\s*$|\b(and|or|but|the|a|an|in|on|at|to|for|of|with|yang|dan|atau|di|ke|dari|untuk|dengan|pada|oleh|sebagai|karena|jika|saat|agar|bahwa)\s*$/i.test(lastLine)
+        if (incompleteEnding || endsWithConjunction) {
             throw new Error(`Konten tidak selesai (kalimat terpotong) — tidak disimpan: "${title.slice(0, 60)}"`)
         }
 
@@ -712,7 +714,7 @@ async function saveArticleId(article) {
       prompt_tokens, completion_tokens, total_tokens, estimated_cost,
       featured_image, excerpt, author, views, language)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-     RETURNING id, slug`,
+     RETURNING id`,
         [
             article.title,
             article.content,
@@ -974,9 +976,12 @@ async function crawlIndonesian() {
                 totalGenerated++
                 fromSource++
                 // Notify Google Indexing API
-                const artSlug = saved.slug || saved.id
-                const artUrl = `https://qbitznews.com/id/articles/${artSlug}`
-                notifyGoogleIndexing(artUrl).catch(() => {})
+                const artId = saved.id
+                const artTitleSlug = (article.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+                const artUrl = artTitleSlug
+                  ? `https://qbitznews.com/articles/${artId}-${artTitleSlug}`
+                  : `https://qbitznews.com/articles/${artId}`
+                notifyGoogleIndexing(artUrl).catch(() => { })
 
                 // Polite delay
                 await new Promise(r => setTimeout(r, 2000))

@@ -21,6 +21,21 @@ async function getGoogleAuthClient() {
   }
 }
 
+async function notifyBingIndexing(url) {
+  const apiKey = process.env.BING_WEBMASTER_API_KEY
+  if (!apiKey) return
+  try {
+    const res = await axios.post(
+      `https://ssl.bing.com/webmaster/api.svc/json/SubmitUrlbatch?apikey=${apiKey}`,
+      { siteUrl: 'https://qbitznews.com', urlList: [url] },
+      { headers: { 'Content-Type': 'application/json' }, timeout: 10000 }
+    )
+    console.log(`[BING] Notified: ${url.slice(0, 70)} → ${res.data?.d || 'OK'}`)
+  } catch (err) {
+    console.error(`[BING] Failed for ${url.slice(0, 70)}: ${err.message}`)
+  }
+}
+
 async function notifyGoogleIndexing(url) {
   try {
     const client = await getGoogleAuthClient()
@@ -242,15 +257,17 @@ function stripImageHintArtifacts(text = '') {
   return text
     .split('\n')
     .filter(line => {
-      const t = line.trim()
+      // Strip ** dulu sebelum cek, supaya **EXCERPT:** juga tertangkap
+      const t = line.trim().replace(/\*\*/g, '')
       return !/^\s*image[_\s-]?hint\s*[:\-]/i.test(t)
           && !/^\s*excerpt\s*[:\-]/i.test(t)
           && !/^\s*category\s*[:\-]/i.test(t)
     })
     .join('\n')
-    .replace(/(?:^|\n)\s*image[_\s-]?hint\s*[:\-]\s*[^\n]*/gi, '')
-    .replace(/(?:^|\n)\s*excerpt\s*[:\-]\s*[^\n]*/gi, '')
-    .replace(/(?:^|\n)\s*category\s*[:\-]\s*[^\n]*/gi, '')
+    // Handle inline kombinasi dalam satu baris, termasuk bold format
+    .replace(/\*?\*?image[_\s-]?hint\*?\*?\s*[:\-]\s*[^\n]*/gi, '')
+    .replace(/\*?\*?excerpt\*?\*?\s*[:\-]\s*[^\n]*/gi, '')
+    .replace(/\*?\*?category\*?\*?\s*[:\-]\s*[^\n]*/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
@@ -678,52 +695,33 @@ async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
 Source Title: ${title}
 Source Content: ${sourceContent.slice(0, 2000)}
 
-OUTPUT FORMAT (follow exactly):
-1. First line: A SPECIFIC, SEO-friendly, high-CTR headline (55-80 chars)
-   - Structure: Subject + Verb + Object (e.g., "[Who] [Does/Announces/Wins] [What]")
-   - Must mention WHO and WHAT specifically (name, organization, country, topic)
-   - Must be descriptive enough to stand alone without reading the article
-   - Use present tense or past participle (e.g., "Launches", "Signs", "Warns", "Passed")
-   - Do NOT start with "The", "A", or "An" — start with a proper noun, organization, or country name
-   - Do NOT write a body sentence (e.g., "The root of the crisis lies in...") — write a headline
-   - USE HIGH-CTR TECHNIQUES (pick the most appropriate):
-     * Include numbers/data if available: "Study Finds 73% of...", "5 Countries That..."
-     * Use power words that trigger emotion: "Reveals", "Breaks", "Slams", "Warns", "Shocks", "Confirms", "Finally", "Secretly"
-     * Create curiosity gap when appropriate: "The Real Reason...", "What Really Happened When...", "How X Managed to..."
-     * Highlight stakes or consequences: "...and It Could Change Everything", "...Putting Millions at Risk"
-     * Use tension-driven verbs: "Defies", "Refuses", "Exposes", "Challenges", "Overturn"
-   - BAD examples: "The Courtesy Visit", "Breaking News", "A Momentum Shift", "The legal case is unprecedented"
-   - GOOD high-CTR examples: "Chelsea Drops Fernandez After Heated Exchange Shocks Club Insiders", "Scientists Reveal Why 1 in 3 Cancer Treatments Suddenly Stops Working", "How Meta Secretly Built an AI That Outperforms GPT-4 on Every Benchmark", "UN Warns 40 Million People Face Starvation as Aid Funding Collapses"
-2. Blank line
-3. Second line: IMAGE_HINT: 4-8 keywords in English for photo search
-  - Must be concrete visual concepts (scene/object/action), but keep it broad and contextual
-  - Avoid specific names of people, organizations, or exact locations
-  - Avoid generic words: "news", "update", "breaking"
-  - Example: IMAGE_HINT: diplomatic meeting conference room discussion
-4. Blank line
-5. Third line: EXCERPT: A compelling 1-2 sentence teaser (120-155 chars)
-   - Must hook the reader and create curiosity or urgency
-   - Highlight the most surprising/impactful angle of the story
-   - Do NOT just repeat the headline — add new info or tension
-   - Do NOT start with "This article", "In this piece", or "Learn about"
-   - GOOD examples:
-     * "Internal documents reveal the AI was tested for months before anyone outside knew — and the results alarmed even its creators."
-     * "The decision came after a closed-door meeting that sources say lasted six hours and ended in a heated standoff."
-     * "Experts warn the ruling sets a precedent that could affect millions of users across 40 countries."
-   - BAD examples: "Read this article to find out more.", "Chelsea dropped their midfielder."
-6. Blank line
-7. Article body in MARKDOWN (minimum 500 words)
-  - Keep journalistic narrative flow; structure must adapt to this specific story
-  - Headings are OPTIONAL (use only when truly needed, max 2)
-  - NEVER use generic templated headings: "Introduction", "Background", "Overview", "Conclusion", "Summary"
-  - Do not follow a rigid pattern like heading → short paragraph → heading repeatedly
-  - Tables are OPTIONAL: include only when there is structured data (dates, figures, comparisons)
-  - Mermaid flowchart/diagram blocks are OPTIONAL: include only if chronology/process is central and clearer as a diagram
-  - If context is purely narrative, do NOT force tables or flowcharts
-  - Use **bold** only when it adds clarity, not in every paragraph
-  - Include context, analysis, implications, and concrete details relevant to this specific story
+OUTPUT FORMAT — respond with exactly these labeled sections, nothing else:
 
-Do NOT include any preamble, explanation, or commentary. Start directly with the headline on line 1.
+HEADLINE: Write SEO headline here — plain text, no asterisks, no markdown (55-80 chars)
+IMAGE_HINT: 4-8 English keywords for Unsplash (concrete visuals only, no names/orgs)
+EXCERPT: Compelling 1-2 sentence teaser — plain text, no asterisks (120-155 chars)
+CATEGORY: One of: Technology | Business | Sports | Football | Health | Entertainment | Politics | Environment | Education | Crime | Crypto | General
+ARTICLE:
+Article body in Markdown starts here (minimum 500 words)
+
+HEADLINE RULES:
+- Subject + Verb + Object, starts with proper noun/org/country (NOT "The", "A", "An")
+- Power words: Reveals, Warns, Slams, Exposes, Confirms, Surges, Collapses, Breaks
+- Numbers/data when available: "Study Finds 73% of...", "5 Countries That..."
+- NO asterisks (**), NO bold formatting, plain text only
+- GOOD: "Chelsea Drops Fernandez After Heated Exchange Shocks Club Insiders"
+- BAD: "**U.S. Labor Market Surges**", "Breaking News", "The Courtesy Visit"
+
+EXCERPT RULES:
+- Add new angle/tension — do NOT repeat the headline
+- NO asterisks, NO markdown, plain text only
+- Do NOT start with: "This article", "In this piece", "Learn about", "Read"
+
+ARTICLE RULES:
+- Journalistic flow, minimum 500 words
+- Headings OPTIONAL (max 2), NEVER: Introduction, Background, Conclusion, Summary
+- Tables/diagrams only for structured data
+- Bold (**text**) sparingly, only when it adds clarity
 
 Begin:`
 
@@ -780,23 +778,52 @@ Begin:`
       /^\*\*(important|note|output|format|instructions?)\*\*/i,
     ]
 
+    // === NEW STRUCTURED PARSER: baca field HEADLINE:/IMAGE_HINT:/EXCERPT:/CATEGORY:/ARTICLE: ===
     let aiImageHint = ''
-    let rawLines = fullContent.split('\n')
+    let aiHeadlineField = ''
+    let aiExcerptField = ''
+    let aiCategoryField = ''
+    let aiArticleBody = ''
 
-    for (let i = 0; i < Math.min(rawLines.length, 12); i++) {
-      const line = rawLines[i].trim()
-      const match = line.match(/^image[_\s-]?hint\s*[:\-]\s*(.+)$/i)
-      if (match && match[1]) {
-        aiImageHint = sanitizeImageHint(match[1])
-        rawLines.splice(i, 1)
-        break
-      }
+    // Coba parse format terstruktur baru
+    const headlineMatch = fullContent.match(/^HEADLINE:\s*(.+)$/im)
+    const imageHintMatch = fullContent.match(/^IMAGE_HINT:\s*(.+)$/im)
+    const excerptMatch = fullContent.match(/^EXCERPT:\s*(.+)$/im)
+    const categoryMatch = fullContent.match(/^CATEGORY:\s*(.+)$/im)
+    const articleMatch = fullContent.match(/^ARTICLE:\s*\n([\s\S]+)/im)
+
+    const isStructured = !!(headlineMatch && articleMatch)
+
+    if (isStructured) {
+      aiHeadlineField = headlineMatch[1].trim().replace(/\*\*/g, '').replace(/\*/g, '').trim()
+      aiImageHint = imageHintMatch ? sanitizeImageHint(imageHintMatch[1]) : ''
+      aiExcerptField = excerptMatch ? excerptMatch[1].trim() : ''
+      aiCategoryField = categoryMatch ? categoryMatch[1].trim() : ''
+      aiArticleBody = articleMatch[1].trim()
+      console.log('[PARSE] Structured format detected')
+    } else {
+      // Fallback: legacy parsing
+      console.log('[PARSE] Fallback to legacy parsing')
     }
 
-    if (!aiImageHint) {
-      const inlineHintMatch = fullContent.match(/image[_\s-]?hint\s*[:\-]\s*([^\n]+)/i)
-      if (inlineHintMatch && inlineHintMatch[1]) {
-        aiImageHint = sanitizeImageHint(inlineHintMatch[1])
+    let rawLines = (isStructured ? aiArticleBody : fullContent).split('\n')
+
+    if (!isStructured) {
+      // Legacy: scan IMAGE_HINT dari rawLines
+      for (let i = 0; i < Math.min(rawLines.length, 12); i++) {
+        const line = rawLines[i].trim()
+        const match = line.match(/^image[_\s-]?hint\s*[:\-]\s*(.+)$/i)
+        if (match && match[1]) {
+          aiImageHint = sanitizeImageHint(match[1])
+          rawLines.splice(i, 1)
+          break
+        }
+      }
+      if (!aiImageHint) {
+        const inlineHintMatch = fullContent.match(/image[_\s-]?hint\s*[:\-]\s*([^\n]+)/i)
+        if (inlineHintMatch && inlineHintMatch[1]) {
+          aiImageHint = sanitizeImageHint(inlineHintMatch[1])
+        }
       }
     }
 
@@ -866,6 +893,13 @@ Begin:`
 
     // === EXTRACT SEO HEADLINE ===
     let seoHeadline = null
+
+    // Kalau structured format, langsung pakai HEADLINE: field
+    if (isStructured && aiHeadlineField && aiHeadlineField.length >= 20) {
+      seoHeadline = aiHeadlineField
+      console.log(`[HEADLINE] Using structured HEADLINE field: ${seoHeadline.slice(0, 70)}`)
+    }
+
     const finalLines = cleanContent.split('\n')
 
     // Pola heading/headline yang terlalu generik / tidak SEO
@@ -932,11 +966,15 @@ Begin:`
     seoHeadline = seoHeadline.replace(/\*\*/g, '').replace(/\*/g, '').replace(/^#+\s*/, '').trim()
     console.log(`[HEADLINE] Extracted SEO headline (${seoHeadline.length} chars): ${seoHeadline.slice(0, 70)}`)
 
-    // === EXTRACT EXCERPT: prioritas dari field EXCERPT: AI-generated ===
+    // === EXTRACT EXCERPT: prioritas dari structured field ===
     let excerpt = ''
+    if (isStructured && aiExcerptField && aiExcerptField.length > 30) {
+      excerpt = aiExcerptField.replace(/\*\*/g, '').trim()
+      console.log(`[EXCERPT] Using structured EXCERPT field (${excerpt.length} chars)`)
+    } else {
     const excerptFieldMatch = rawContent.match(/^EXCERPT:\s*(.+)$/m)
     if (excerptFieldMatch && excerptFieldMatch[1].trim().length > 30) {
-      excerpt = excerptFieldMatch[1].trim()
+      excerpt = excerptFieldMatch[1].trim().replace(/\*\*/g, '').trim()
       console.log(`[EXCERPT] Using AI-generated excerpt (${excerpt.length} chars)`)
     } else {
       // Fallback: ambil dari paragraf pertama konten bersih
@@ -953,6 +991,7 @@ Begin:`
       if (!excerpt.endsWith('.')) excerpt += '.'
       console.log(`[EXCERPT] Using fallback paragraph excerpt`)
     }
+    } // end else (non-structured excerpt)
     // Trim to max 155 chars for meta description
     // Potong excerpt di batas kalimat atau batas kata, max 155 chars
     if (excerpt.length > 155) {
@@ -984,9 +1023,9 @@ Begin:`
     const trimmedClean = cleanContent.trimEnd()
     const lastChar = trimmedClean.slice(-1)
     const lastLine = trimmedClean.split('\n').pop()?.trim() || ''
-    const incompleteEnding = !/[.!?"'\)\]»]/.test(lastChar)
-    const lastLineIncomplete = lastLine.length > 0 && lastLine.length < 30 && !/[.!?]$/.test(lastLine) && !lastLine.startsWith('#')
-    if (incompleteEnding || lastLineIncomplete) {
+    const incompleteEnding = !/[.!?"'\)\]»\*\-a-zA-Z0-9]/.test(lastChar)
+    const endsWithConjunction = /,\s*$|\b(and|or|but|the|a|an|in|on|at|to|for|of|with)\s*$/i.test(lastLine)
+    if (incompleteEnding || endsWithConjunction) {
       throw new Error(`Content incomplete (truncated sentence) — not saved: "${seoHeadline.slice(0, 60)}"`)
     }
 
@@ -1043,8 +1082,36 @@ async function generateArticleOpenRouter(title, sourceContent, sourceUrl) {
     'meta-llama/llama-3.3-8b-instruct:free',
   ]
   const model = OPENROUTER_FALLBACK_MODELS[0]
-  // Reuse same prompt structure dari generateArticle
-  const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.\n\nSource Title: ${title}\nSource Content: ${sourceContent.slice(0, 2000)}\n\nWrite a complete article in English with a strong SEO headline on the first line, followed by a blank line, then the article body (minimum 400 words). Include an EXCERPT: line after the headline with a 1-2 sentence compelling teaser. Include IMAGE_HINT: with 4-6 English words for Unsplash. Include CATEGORY: from: Technology | Business | Sports | Football | Health | Entertainment | Politics | Environment | Education | Crime | Crypto | General`
+  // Same structured format as main generateArticle
+  const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.
+
+Source Title: ${title}
+Source Content: ${sourceContent.slice(0, 2000)}
+
+OUTPUT FORMAT — respond with exactly these labeled sections, nothing else:
+
+HEADLINE: Write SEO headline here — plain text, no asterisks, no markdown (55-80 chars)
+IMAGE_HINT: 4-8 English keywords for Unsplash (concrete visuals only, no names/orgs)
+EXCERPT: Compelling 1-2 sentence teaser — plain text, no asterisks (120-155 chars)
+CATEGORY: One of: Technology | Business | Sports | Football | Health | Entertainment | Politics | Environment | Education | Crime | Crypto | General
+ARTICLE:
+Article body in Markdown starts here (minimum 500 words)
+
+HEADLINE RULES:
+- Subject + Verb + Object, starts with proper noun/org/country (NOT "The", "A", "An")
+- NO asterisks (**), NO bold formatting, plain text only
+- GOOD: "US F-15E Fighter Jet Downed Over Iran as Tehran Releases Wreckage"
+- BAD: "**US F-15E Jet Shot Down**", "Breaking News"
+
+EXCERPT RULES:
+- Plain text only — NO asterisks, NO markdown
+- Do NOT start with "This article", "Learn about", "Read"
+
+ARTICLE RULES:
+- Minimum 500 words, journalistic tone
+- Do NOT include HEADLINE/EXCERPT/IMAGE_HINT/CATEGORY labels inside the article body
+
+Begin:`
 
   try {
     const res = await axios.post(
@@ -1063,23 +1130,41 @@ async function generateArticleOpenRouter(title, sourceContent, sourceUrl) {
     const text = res.data?.choices?.[0]?.message?.content || ''
     if (!text) throw new Error('Empty OpenRouter response')
     console.log(`[OR-FALLBACK] Generated via ${model}: ${title.slice(0, 50)}`)
-    // Parse sederhana: ambil baris pertama sebagai headline, sisanya sebagai content
-    const orLines = text.split('\n')
-    let orHeadline = ''
-    let orExcerpt = ''
-    let orImageHint = ''
-    let orCategory = ''
-    let orBodyStart = 0
-    for (let i = 0; i < Math.min(orLines.length, 8); i++) {
-      const ln = orLines[i].trim()
-      if (!ln) continue
-      if (/^excerpt\s*[:\-]/i.test(ln)) { orExcerpt = ln.replace(/^excerpt\s*[:\-]\s*/i, '').trim(); continue }
-      if (/^image[_\s-]?hint\s*[:\-]/i.test(ln)) { orImageHint = ln.replace(/^image[_\s-]?hint\s*[:\-]\s*/i, '').trim(); continue }
-      if (/^category\s*[:\-]/i.test(ln)) { orCategory = ln.replace(/^category\s*[:\-]\s*/i, '').trim(); continue }
-      if (!orHeadline && ln.length > 15) { orHeadline = ln.replace(/^#+\s*/, '').trim(); orBodyStart = i + 1; continue }
+    // Structured parser — sama dengan generateArticle
+    const orHeadlineMatch = text.match(/^HEADLINE:\s*(.+)$/im)
+    const orImageHintMatch = text.match(/^IMAGE_HINT:\s*(.+)$/im)
+    const orExcerptMatch = text.match(/^EXCERPT:\s*(.+)$/im)
+    const orCategoryMatch = text.match(/^CATEGORY:\s*(.+)$/im)
+    const orArticleMatch = text.match(/^ARTICLE:\s*\n([\s\S]+)/im)
+
+    let orHeadline = orHeadlineMatch ? orHeadlineMatch[1].trim().replace(/\*\*/g, '').replace(/\*/g, '').trim() : ''
+    let orExcerpt = orExcerptMatch ? orExcerptMatch[1].trim().replace(/\*\*/g, '').trim() : ''
+    let orImageHint = orImageHintMatch ? orImageHintMatch[1].trim().replace(/\*\*/g, '').trim() : ''
+    let orCategory = orCategoryMatch ? orCategoryMatch[1].trim() : ''
+    let orBody = orArticleMatch ? orArticleMatch[1].trim() : ''
+
+    // Fallback kalau model tidak ikuti format terstruktur
+    if (!orHeadline || !orBody) {
+      console.warn('[OR-FALLBACK] Model did not follow structured format, using legacy parse')
+      const orLines = text.split('\n')
+      let orBodyStart = 0
+      for (let i = 0; i < Math.min(orLines.length, 15); i++) {
+        const ln = orLines[i].trim().replace(/\*\*/g, '')
+        if (!ln) continue
+        if (/^excerpt\s*[:\-]/i.test(ln)) { orExcerpt = orExcerpt || ln.replace(/^\*?\*?excerpt\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
+        if (/^image[_\s-]?hint\s*[:\-]/i.test(ln)) { orImageHint = orImageHint || ln.replace(/^\*?\*?image[_\s-]?hint\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
+        if (/^category\s*[:\-]/i.test(ln)) { orCategory = orCategory || ln.replace(/^\*?\*?category\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
+        if (/^headline\s*[:\-]/i.test(ln)) { orHeadline = orHeadline || ln.replace(/^\*?\*?headline\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
+        if (!orHeadline && ln.length > 15) { orHeadline = ln.replace(/^#+\s*/, '').trim(); orBodyStart = i + 1; continue }
+      }
+      if (!orBody) {
+        orBody = orLines.slice(orBodyStart).join('\n')
+      }
     }
+
+    // Final cleanup body dari sisa metadata
+    orBody = stripImageHintArtifacts(orBody)
     if (!orHeadline) orHeadline = title
-    const orBody = orLines.slice(orBodyStart).join('\n').replace(/^image[_\s-]?hint[^\n]*/gim, '').replace(/^excerpt[^\n]*/gim, '').replace(/^category[^\n]*/gim, '').trim()
     return {
       title: orHeadline,
       content: orBody,
@@ -1410,6 +1495,20 @@ async function processSource(source, options = {}) {
 
       const uniqueFeaturedImage = await ensureUniqueFeaturedImage(featuredImage)
 
+      // Final sanity check: jangan simpan kalau title masih ada metadata leak
+      const titleHasLeak = /^\*{1,2}(EXCERPT|IMAGE_HINT|CATEGORY|HEADLINE)\*{0,2}[:\-]/i.test(generated.title) || /^(EXCERPT|IMAGE_HINT|CATEGORY)\s*[:\-]/i.test(generated.title)
+      if (titleHasLeak) {
+        console.error(`[SANITY] Skipping article with metadata in title: "${generated.title.slice(0, 60)}"`)
+        continue
+      }
+      const contentHasHeaderLeak = /^(EXCERPT|IMAGE_HINT|CATEGORY)\s*[:\-]/im.test(generated.content)
+      if (contentHasHeaderLeak) {
+        generated.content = generated.content
+          .replace(/^\*?\*?(EXCERPT|IMAGE_HINT|CATEGORY)\*?\*?\s*[:\-][^\n]*/gim, '')
+          .replace(/\n{3,}/g, '\n\n').trim()
+        console.warn(`[SANITY] Cleaned residual metadata from content of: "${generated.title.slice(0, 60)}"`)
+      }
+
       const saved = await pool.query(
         `INSERT INTO articles 
          (title, content, source_url, source_name, published_at, is_published, ai_model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, excerpt, author, featured_image, language)
@@ -1449,9 +1548,15 @@ async function processSource(source, options = {}) {
       generatedCount++
       console.log("Generated:", saved.rows[0].id, "-", generated.title.slice(0, 50))
       // Notify Google Indexing API
-      const articleSlug = saved.rows[0].slug || saved.rows[0].id
-      const articleUrl = `https://qbitznews.com/articles/${articleSlug}`
+      // Build full slug URL (same as frontend buildArticlePath) to avoid 308 redirect
+      const articleId = saved.rows[0].id
+      const articleTitle = saved.rows[0].title || ''
+      const titleSlug = articleTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      const articleUrl = titleSlug
+        ? `https://qbitznews.com/articles/${articleId}-${titleSlug}`
+        : `https://qbitznews.com/articles/${articleId}`
       notifyGoogleIndexing(articleUrl).catch(() => {})
+      notifyBingIndexing(articleUrl).catch(() => {})
     } catch (err) {
       console.error(`Failed to generate article from ${article.title} :`, err.message)
     }
