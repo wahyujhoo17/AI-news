@@ -28,12 +28,34 @@ export default function GoogleAd({
 
   useEffect(() => {
     if (pushed.current) return
-    try {
-      const adsbygoogle = (window.adsbygoogle = window.adsbygoogle || [])
-      adsbygoogle.push({})
-      pushed.current = true
-    } catch {
-      // adsbygoogle not ready yet
+
+    let attempts = 0
+    let retryTimer: number | undefined
+
+    const tryPush = () => {
+      if (pushed.current) return true
+      try {
+        const adsbygoogle = (window.adsbygoogle = window.adsbygoogle || [])
+        adsbygoogle.push({})
+        pushed.current = true
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    if (!tryPush()) {
+      // Retry for cases where adsbygoogle script loads after component mount.
+      retryTimer = window.setInterval(() => {
+        attempts += 1
+        if (tryPush() || attempts >= 10) {
+          if (retryTimer) window.clearInterval(retryTimer)
+        }
+      }, 1500)
+    }
+
+    return () => {
+      if (retryTimer) window.clearInterval(retryTimer)
     }
   }, [])
 

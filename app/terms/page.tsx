@@ -153,7 +153,7 @@ export default function TermsPage() {
               If you have questions about these Terms of Service, please contact us at:
             </p>
             <p className="text-cyan-400 mt-4">
-              Email: legal@qbitz.ai
+              Email: legal@qbitznews.com
             </p>
           </section>
         </div>

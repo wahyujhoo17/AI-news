@@ -169,6 +169,24 @@ const TECH_FEEDS = [
   { id: 908, name: 'ZDNet', type: 'rss', url: 'https://www.zdnet.com/topic/rss.xml', isTech: true },
 ]
 
+// AI-specific feeds
+const AI_FEEDS = [
+  { id: 921, name: 'VentureBeat AI', type: 'rss', url: 'https://venturebeat.com/category/ai/feed/', isAI: true },
+  { id: 922, name: 'AI News', type: 'rss', url: 'https://www.artificialintelligence-news.com/feed/', isAI: true },
+  { id: 923, name: 'The Decoder', type: 'rss', url: 'https://the-decoder.com/feed/', isAI: true },
+  { id: 924, name: 'AI Business', type: 'rss', url: 'https://aibusiness.com/rss.xml', isAI: true },
+  { id: 925, name: 'MIT AI News', type: 'rss', url: 'https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml', isAI: true },
+]
+
+// Blockchain/Crypto-specific feeds
+const CRYPTO_FEEDS = [
+  { id: 931, name: 'CoinDesk', type: 'rss', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', isCrypto: true },
+  { id: 932, name: 'Decrypt', type: 'rss', url: 'https://decrypt.co/feed', isCrypto: true },
+  { id: 933, name: 'CoinTelegraph', type: 'rss', url: 'https://cointelegraph.com/rss', isCrypto: true },
+  { id: 934, name: 'Bitcoin Magazine', type: 'rss', url: 'https://bitcoinmagazine.com/feed', isCrypto: true },
+  { id: 935, name: 'The Block', type: 'rss', url: 'https://www.theblock.co/rss.xml', isCrypto: true },
+]
+
 // Football-specific feeds
 const FOOTBALL_FEEDS = [
   { id: 911, name: 'BBC Football', type: 'rss', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml', isFootball: true, noSourceImage: true },
@@ -181,9 +199,12 @@ const FOOTBALL_FEEDS = [
 
 // Konfigurasi rasio artikel per siklus crawl
 const CRAWL_CONFIG = {
-  TOTAL_BUDGET: 10,        // total artikel target per siklus
-  TECH_RATIO: 0.05,        // 5% technology
+  TOTAL_BUDGET: 12,        // total artikel target per siklus (naik dari 10)
+  TECH_RATIO: 0.20,        // 20% technology
+  AI_RATIO: 0.20,          // 20% AI
+  CRYPTO_RATIO: 0.15,      // 15% blockchain/crypto
   FOOTBALL_RATIO: 0.10,    // 10% football
+  // General = sisa = 35%
   MAX_PER_SOURCE: 3,       // maks artikel diambil per sumber
 }
 
@@ -1080,10 +1101,18 @@ async function generateArticleOpenRouter(title, sourceContent, sourceUrl) {
     'z-ai/glm-4.5-air:free',
     'stepfun/step-3.5-flash:free',
     'meta-llama/llama-3.3-8b-instruct:free',
+    'mistralai/mistral-7b-instruct:free',
+    'google/gemma-3-4b-it:free',
+    'qwen/qwen3-8b:free',
+    'microsoft/phi-4-reasoning-plus:free',
   ]
-  const model = OPENROUTER_FALLBACK_MODELS[0]
+  // Rotate through all models until one succeeds
+  let lastErr = null
+  for (const model of OPENROUTER_FALLBACK_MODELS) {
   // Same structured format as main generateArticle
   const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.
+
+
 
 Source Title: ${title}
 Source Content: ${sourceContent.slice(0, 2000)}
@@ -1177,9 +1206,20 @@ Begin:`
       format: 'markdown',
     }
   } catch (err) {
-    console.error(`[OR-FALLBACK] Failed: ${err.message}`)
-    throw err
-  }
+      lastErr = err
+      const status = err?.response?.status
+      if (status === 429 || status === 503 || status === 500 || !err.response) {
+        console.warn(`[OR-FALLBACK] Model ${model} failed (${status || err.message}), trying next...`)
+        continue
+      }
+      // Non-rate-limit error, stop immediately
+      console.error(`[OR-FALLBACK] Fatal on ${model}: ${err.message}`)
+      throw err
+    }
+  } // end for loop
+  // All models exhausted
+  console.error(`[OR-FALLBACK] All ${OPENROUTER_FALLBACK_MODELS.length} models exhausted for: "${title.slice(0, 60)}"`)
+  throw lastErr || new Error('All OpenRouter fallback models exhausted')
 }
 
 function detectCategory(title, content) {
@@ -1197,56 +1237,121 @@ function detectCategory(title, content) {
       'humanitarian', 'ceasefire', 'troops', 'military operation'
     ],
     'environment': [
-      'climate change', 'global warming', 'carbon', 'emission', 'pollution',
-      'deforestation', 'biodiversity', 'extinction', 'glacier', 'sea level'
+      'climate change', 'global warming', 'carbon emission', 'pollution',
+      'deforestation', 'biodiversity', 'extinction', 'glacier', 'sea level',
+      'renewable energy', 'solar panel', 'wind turbine', 'carbon footprint'
     ],
     'sports': [
-      // Generic sports
       'sport', 'athlete', 'olympic', 'medal', 'championship', 'tournament',
       'league', 'match', 'fixture', 'squad', 'standings', 'season', 'club',
       'player', 'team', 'stadium', 'coach', 'referee', 'penalty', 'offside',
-      // Football / soccer specific
       'football', 'soccer', 'striker', 'midfielder', 'goalkeeper', 'defender',
       'winger', 'transfer window', 'signing', 'relegated', 'promotion', 'manager',
       'premier league', 'bundesliga', 'la liga', 'serie a', 'champions league',
       'europa league', 'world cup', 'euro', 'copa america', 'fa cup',
-      // Other sports
       'basketball', 'tennis', 'cricket', 'rugby', 'golf', 'boxing', 'swimming',
       'cycling', 'grand slam', 'wimbledon', 'super bowl', 'nfl', 'nba', 'mlb',
       'nhl', 'motogp', 'formula 1'
+    ],
+    'religion': [
+      'easter', 'christmas', 'ramadan', 'eid', 'diwali', 'hanukkah', 'passover',
+      'sermon', 'pope', 'vatican', 'bishop', 'cardinal', 'archbishop', 'priest',
+      'mosque', 'church', 'temple', 'synagogue', 'cathedral', 'holy', 'prayer',
+      'pilgrimage', 'baptism', 'mass', 'liturgy', 'scripture', 'gospel',
+      'imam', 'rabbi', 'monk', 'nun', 'faith', 'worship', 'congregation',
+      'theology', 'denomination', 'protestant', 'catholic', 'muslim', 'jewish',
+      'buddhist', 'hindu', 'christian'
     ]
   }
 
   const keywords = {
-    'technology': ['technology', 'tech', 'digital', 'ai', 'software', 'app', 'code', 'programming', 'cyber', 'internet', 'data'],
-    'business': ['business', 'market', 'trade', 'commerce', 'company', 'corporate', 'economy', 'finance', 'stock', 'investor'],
-    'health': ['health', 'medical', 'doctor', 'disease', 'hospital', 'vaccine', 'covid', 'pandemic', 'treatment', 'wellness'],
-    'entertainment': ['entertainment', 'movie', 'music', 'celebrity', 'actor', 'film', 'show', 'series', 'hollywood', 'drama'],
-    'politics': ['politics', 'government', 'election', 'president', 'parliament', 'law', 'vote', 'congress', 'senator', 'minister']
+    'technology': [
+      'technology', 'software', 'hardware', 'programming', 'cybersecurity',
+      'internet', 'smartphone', 'laptop', 'processor', 'semiconductor',
+      'cloud computing', 'machine learning', 'neural network', 'deep learning',
+      'robotics', 'automation', 'virtual reality', 'augmented reality',
+      'quantum computing', 'open source', 'developer', 'startup tech',
+      'artificial intelligence', 'chatbot', 'large language model', 'llm',
+      'generative ai', 'computer vision', 'algorithm', 'data science'
+    ],
+    'crypto': [
+      'bitcoin', 'ethereum', 'blockchain', 'cryptocurrency', 'crypto',
+      'defi', 'nft', 'web3', 'token', 'wallet', 'exchange', 'binance',
+      'coinbase', 'altcoin', 'stablecoin', 'mining', 'staking', 'dao',
+      'smart contract', 'metaverse', 'solana', 'ripple', 'dogecoin'
+    ],
+    'business': [
+      'business', 'market', 'trade', 'commerce', 'company', 'corporate',
+      'economy', 'finance', 'stock', 'investor', 'startup', 'revenue',
+      'profit', 'earnings', 'acquisition', 'merger', 'ipo', 'valuation',
+      'gdp', 'inflation', 'interest rate', 'federal reserve', 'wall street'
+    ],
+    'health': [
+      'health', 'medical', 'doctor', 'disease', 'hospital', 'vaccine',
+      'covid', 'pandemic', 'treatment', 'wellness', 'surgery', 'cancer',
+      'diabetes', 'mental health', 'nutrition', 'drug', 'clinical trial',
+      'fda', 'who', 'epidemic', 'virus', 'bacteria', 'pharmacy'
+    ],
+    'entertainment': [
+      'entertainment', 'movie', 'music', 'celebrity', 'actor', 'film',
+      'show', 'series', 'hollywood', 'drama', 'concert', 'album', 'award',
+      'oscar', 'grammy', 'netflix', 'streaming', 'box office', 'director',
+      'singer', 'band', 'tour', 'trailer', 'premiere', 'comic'
+    ],
+    'politics': [
+      'politics', 'government', 'election', 'president', 'parliament',
+      'law', 'vote', 'congress', 'senator', 'minister', 'democrat',
+      'republican', 'white house', 'kremlin', 'nato', 'un', 'sanction',
+      'treaty', 'diplomacy', 'foreign policy', 'tariff', 'legislation',
+      'supreme court', 'governor', 'mayor', 'campaign', 'ballot'
+    ],
+    'science': [
+      'science', 'research', 'study', 'discovery', 'experiment', 'nasa',
+      'space', 'astronomy', 'physics', 'chemistry', 'biology', 'genetics',
+      'genome', 'fossil', 'species', 'marine', 'ocean', 'planet', 'asteroid',
+      'telescope', 'laboratory', 'scientist', 'professor', 'university'
+    ]
   }
 
   const categories = []
 
-  // Check priority keywords first
+  // Check priority keywords first (whole-word matching for short terms)
   for (const [cat, words] of Object.entries(priorityKeywords)) {
-    if (words.some(w => text.includes(w))) {
+    if (words.some(w => {
+      // Use word boundary for short words (< 5 chars) to avoid false matches
+      if (w.length < 5) {
+        const regex = new RegExp(`\\b${w}\\b`, 'i')
+        return regex.test(text)
+      }
+      return text.includes(w)
+    })) {
       categories.push(cat)
     }
   }
 
-  const hasSports = categories.includes('sports')
-  const hasWorld = categories.includes('world') || categories.includes('environment')
+  const hasPriority = categories.length > 0
 
-  if (!hasSports && !hasWorld) {
+  if (!hasPriority) {
     // No priority match: check all secondary keywords
     for (const [cat, words] of Object.entries(keywords)) {
-      if (words.some(w => text.includes(w))) categories.push(cat)
+      if (words.some(w => {
+        if (w.length < 4) {
+          const regex = new RegExp(`\\b${w}\\b`, 'i')
+          return regex.test(text)
+        }
+        return text.includes(w)
+      })) categories.push(cat)
     }
   } else {
-    // Priority matched: only allow technology/politics/health as additions
-    // (skip business & entertainment — they produce too many false positives for sports/world articles)
-    for (const cat of ['technology', 'politics', 'health']) {
-      if (keywords[cat]?.some(w => text.includes(w))) categories.push(cat)
+    // Priority matched: only allow technology/politics/health/crypto/science as additions
+    for (const cat of ['technology', 'politics', 'health', 'crypto', 'science']) {
+      if (keywords[cat]?.some(w => {
+        if (w.length < 4) {
+          const regex = new RegExp(`\\b${w}\\b`, 'i')
+          return regex.test(text)
+        }
+        return text.includes(w)
+      })) categories.push(cat)
     }
   }
 
@@ -1260,12 +1365,15 @@ async function classifyArticleWithAI(title, excerpt) {
 
     // More strict prompt that forces output format
     const prompt = `Categorize this news article. Choose 1-3 categories from the preferred list below. Only use a custom category if NONE of the preferred ones fit.
-Preferred categories: world, politics, business, technology, health, sports, entertainment, environment, science, education, crime, society
+Preferred categories: world, politics, business, technology, health, sports, entertainment, environment, science, education, crime, society, religion, crypto
 
 Rules:
 - For natural disasters (earthquake, flood, hurricane, etc.) → use: world
 - For wars, conflicts, international events → use: world
 - For company news, economy, stocks, trade → use: business
+- For religious events, sermons, pope, church, mosque, faith → use: religion
+- For bitcoin, ethereum, blockchain, crypto, defi, nft → use: crypto
+- For AI, machine learning, neural networks, chatbots → use: technology
 - Respond with ONLY category names, lowercase, separated by commas. No other text.
 
 Title: ${title}
@@ -1501,18 +1609,19 @@ async function processSource(source, options = {}) {
         console.error(`[SANITY] Skipping article with metadata in title: "${generated.title.slice(0, 60)}"`)
         continue
       }
-      const contentHasHeaderLeak = /^(EXCERPT|IMAGE_HINT|CATEGORY)\s*[:\-]/im.test(generated.content)
+      const contentHasHeaderLeak = /^(HEADLINE|EXCERPT|IMAGE_HINT|CATEGORY|ARTICLE)\s*[:\-]/im.test(generated.content)
       if (contentHasHeaderLeak) {
         generated.content = generated.content
-          .replace(/^\*?\*?(EXCERPT|IMAGE_HINT|CATEGORY)\*?\*?\s*[:\-][^\n]*/gim, '')
+          .replace(/^\*?\*?(HEADLINE|EXCERPT|IMAGE_HINT|CATEGORY)\*?\*?\s*[:\-][^\n]*/gim, '')
+          .replace(/^\*?\*?ARTICLE\*?\*?\s*:?\s*\n/gim, '')
           .replace(/\n{3,}/g, '\n\n').trim()
         console.warn(`[SANITY] Cleaned residual metadata from content of: "${generated.title.slice(0, 60)}"`)
       }
 
       const saved = await pool.query(
         `INSERT INTO articles 
-         (title, content, source_url, source_name, published_at, is_published, ai_model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, excerpt, author, featured_image, language)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+         (title, content, source_url, source_name, published_at, is_published, ai_model, prompt_tokens, completion_tokens, total_tokens, estimated_cost, excerpt, author, featured_image, language, category)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
         [
           generated.title,
           generated.content,
@@ -1528,7 +1637,8 @@ async function processSource(source, options = {}) {
           generated.excerpt,
           generated.author,
           uniqueFeaturedImage,
-          'en'
+          'en',
+          categoryRows.map(c => c.name).join(', ')
         ]
       )
 
@@ -1590,13 +1700,15 @@ async function runCrawl() {
   }
 
   const techBudget = probabilisticBudget(CRAWL_CONFIG.TOTAL_BUDGET, CRAWL_CONFIG.TECH_RATIO)
+  const aiBudget = probabilisticBudget(CRAWL_CONFIG.TOTAL_BUDGET, CRAWL_CONFIG.AI_RATIO)
+  const cryptoBudget = probabilisticBudget(CRAWL_CONFIG.TOTAL_BUDGET, CRAWL_CONFIG.CRYPTO_RATIO)
   const footballBudget = probabilisticBudget(CRAWL_CONFIG.TOTAL_BUDGET, CRAWL_CONFIG.FOOTBALL_RATIO)
-  const generalBudget = Math.max(0, CRAWL_CONFIG.TOTAL_BUDGET - techBudget - footballBudget)
+  const generalBudget = Math.max(0, CRAWL_CONFIG.TOTAL_BUDGET - techBudget - aiBudget - cryptoBudget - footballBudget)
 
-  console.log(`[BUDGET] Cycle target: ${CRAWL_CONFIG.TOTAL_BUDGET} artikel | Tech: ${techBudget} (~${CRAWL_CONFIG.TECH_RATIO * 100}%) | Football: ${footballBudget} (~${CRAWL_CONFIG.FOOTBALL_RATIO * 100}%) | General: ${generalBudget}`)
+  console.log(`[BUDGET] Cycle target: ${CRAWL_CONFIG.TOTAL_BUDGET} | Tech: ${techBudget} (20%) | AI: ${aiBudget} (20%) | Crypto: ${cryptoBudget} (15%) | Football: ${footballBudget} (10%) | General: ${generalBudget} (35%)`)
 
   try {
-    // ── 5% TECH SOURCES ──────────────────────────────────────────
+    // ── 20% TECH SOURCES ──────────────────────────────────────────
     let techGenerated = 0
     const shuffledTech = [...TECH_FEEDS].sort(() => Math.random() - 0.5)
 
@@ -1611,7 +1723,37 @@ async function runCrawl() {
     }
     console.log(`[BUDGET] Tech selesai: ${techGenerated}/${techBudget} artikel`)
 
-    // ── 5% FOOTBALL SOURCES ───────────────────────────────────────
+    // ── 20% AI SOURCES ────────────────────────────────────────────
+    let aiGenerated = 0
+    const shuffledAI = [...AI_FEEDS].sort(() => Math.random() - 0.5)
+
+    for (const source of shuffledAI) {
+      if (aiGenerated >= aiBudget) break
+      const remaining = aiBudget - aiGenerated
+      const count = await processSource(source, {
+        maxArticles: Math.min(remaining, CRAWL_CONFIG.MAX_PER_SOURCE),
+        forcedCategories: ['technology', 'ai']
+      })
+      aiGenerated += count
+    }
+    console.log(`[BUDGET] AI selesai: ${aiGenerated}/${aiBudget} artikel`)
+
+    // ── 15% CRYPTO SOURCES ────────────────────────────────────────
+    let cryptoGenerated = 0
+    const shuffledCrypto = [...CRYPTO_FEEDS].sort(() => Math.random() - 0.5)
+
+    for (const source of shuffledCrypto) {
+      if (cryptoGenerated >= cryptoBudget) break
+      const remaining = cryptoBudget - cryptoGenerated
+      const count = await processSource(source, {
+        maxArticles: Math.min(remaining, CRAWL_CONFIG.MAX_PER_SOURCE),
+        forcedCategories: ['crypto', 'blockchain']
+      })
+      cryptoGenerated += count
+    }
+    console.log(`[BUDGET] Crypto selesai: ${cryptoGenerated}/${cryptoBudget} artikel`)
+
+    // ── 10% FOOTBALL SOURCES ──────────────────────────────────────
     let footballGenerated = 0
     const shuffledFootball = [...FOOTBALL_FEEDS].sort(() => Math.random() - 0.5)
 
@@ -1626,7 +1768,7 @@ async function runCrawl() {
     }
     console.log(`[BUDGET] Football selesai: ${footballGenerated}/${footballBudget} artikel`)
 
-    // ── 90% GENERAL SOURCES ───────────────────────────────────────
+    // ── 35% GENERAL SOURCES ───────────────────────────────────────
     let generalGenerated = 0
     const generalSources = await getSources()
     const shuffledGeneral = [...generalSources].sort(() => Math.random() - 0.5)
@@ -1641,7 +1783,8 @@ async function runCrawl() {
     }
     console.log(`[BUDGET] General selesai: ${generalGenerated}/${generalBudget} artikel`)
 
-    console.log(`[BUDGET] Total siklus ini: ${techGenerated + footballGenerated + generalGenerated} artikel (tech: ${techGenerated}, football: ${footballGenerated}, general: ${generalGenerated})`)
+    const totalGenerated = techGenerated + aiGenerated + cryptoGenerated + footballGenerated + generalGenerated
+    console.log(`[BUDGET] Total siklus ini: ${totalGenerated} artikel (tech: ${techGenerated}, ai: ${aiGenerated}, crypto: ${cryptoGenerated}, football: ${footballGenerated}, general: ${generalGenerated})`)
     console.log("Crawl job completed.")
   } catch (err) {
     console.error("Crawl error:", err.message)

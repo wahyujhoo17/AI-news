@@ -719,23 +719,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                 {formattedDate}
               </time>
               {article.source_name && (
-                <span className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 110-16 8 8 0 010 16zm-1-13h2v6h-2zm0 8h2v2h-2z" />
-                  </svg>
-                  Source:{" "}
-                  {article.source_url ? (
-                    <a
-                      href={article.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-cyan-400 transition-colors underline underline-offset-2"
-                    >
-                      {article.source_name}
-                    </a>
-                  ) : (
-                    <span>{article.source_name}</span>
-                  )}
+                <span className="flex items-center gap-1.5 text-xs text-gray-600 italic">
+                  Originally reported by {article.source_name}
                 </span>
               )}
             </div>

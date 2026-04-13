@@ -226,9 +226,40 @@ export async function getTrendingArticles(limit = 6, language = "en") {
     language === "en"
       ? `(a.language IS NULL OR a.language = 'en')`
       : `a.language = $2`
-  const params: any[] = language === "en" ? [limit] : [limit, language]
 
-  const result = await pool.query<ArticleListItem>(
+  const runQuery = async (interval: string) => {
+    const params: any[] = language === "en" ? [limit] : [limit, language]
+    const res = await pool.query<ArticleListItem>(
+      `SELECT
+         a.id, a.title, a.excerpt,
+         LEFT(COALESCE(a.content, ''), 220) AS content,
+         a.source_name, a.source_url, a.published_at, a.created_at,
+         a.featured_image, a.views,
+         string_agg(DISTINCT c.name, ', ') AS categories
+       FROM articles a
+       LEFT JOIN article_categories ac ON a.id = ac.article_id
+       LEFT JOIN categories c ON ac.category_id = c.id
+       WHERE a.is_published = true AND ${langCondition}
+         AND a.created_at >= NOW() - INTERVAL '${interval}'
+       GROUP BY a.id
+       ORDER BY COALESCE(a.views, 0) DESC, a.created_at DESC
+       LIMIT $1`,
+      params
+    )
+    return res.rows
+  }
+
+  // Coba 4 hari dulu
+  const recent = await runQuery("4 days")
+  if (recent.length >= limit) return recent
+
+  // Fallback ke 14 hari
+  const wider = await runQuery("14 days")
+  if (wider.length >= limit) return wider
+
+  // Fallback terakhir: tanpa filter waktu
+  const params: any[] = language === "en" ? [limit] : [limit, language]
+  const all = await pool.query<ArticleListItem>(
     `SELECT
        a.id, a.title, a.excerpt,
        LEFT(COALESCE(a.content, ''), 220) AS content,
@@ -244,7 +275,7 @@ export async function getTrendingArticles(limit = 6, language = "en") {
      LIMIT $1`,
     params
   )
-  return result.rows
+  return all.rows
 }
 
 export async function getAllCategories(language?: string) {

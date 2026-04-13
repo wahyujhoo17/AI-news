@@ -730,8 +730,8 @@ async function saveArticleId(article) {
         `INSERT INTO articles
      (title, content, source_url, source_name, published_at, is_published, ai_model,
       prompt_tokens, completion_tokens, total_tokens, estimated_cost,
-      featured_image, excerpt, author, views, language)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      featured_image, excerpt, author, views, language, category)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      RETURNING id`,
         [
             article.title,
@@ -750,6 +750,7 @@ async function saveArticleId(article) {
             'AI Redaksi Indonesia',
             0,
             'id',
+            (article.categories || []).join(', ') || null,
         ]
     )
     return result.rows[0]

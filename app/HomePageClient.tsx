@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { Fragment, useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Navbar from "./components/Navbar"
 import Footer from "./components/Footer"
+import GoogleAd from "./components/GoogleAd"
 import { buildArticlePath } from "@/lib/article-slug"
 
 interface Article {
@@ -588,6 +589,9 @@ function HomeContent({
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="sr-only">Qbitz – AI-Powered News: Latest World, Technology &amp; Sports Headlines</h1>
+        <div className="mb-6">
+          <GoogleAd slot="7318960512" format="horizontal" className="w-full min-h-[90px]" />
+        </div>
         {loading ? (
           <HomeSkeleton />
         ) : articles.length === 0 ? (
@@ -638,8 +642,15 @@ function HomeContent({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  {gridArticles.map((article) => (
-                    <ArticleCard key={article.id} article={article} categories={categories} prefix={prefix} />
+                  {gridArticles.map((article, index) => (
+                    <Fragment key={article.id}>
+                      <ArticleCard article={article} categories={categories} prefix={prefix} />
+                      {(index + 1) % 8 === 0 && (
+                        <div className="sm:col-span-2">
+                          <GoogleAd slot="4127083649" format="horizontal" className="w-full min-h-[90px]" />
+                        </div>
+                      )}
+                    </Fragment>
                   ))}
                 </div>
 
@@ -667,9 +678,16 @@ function HomeContent({
 
               <div className="lg:col-span-1">
                 <div className="sticky top-4 space-y-6">
+                  <div className="hidden lg:block rounded-xl border border-cyan-500/20 bg-black/40 p-2">
+                    <GoogleAd slot="6085234178" format="rectangle" style={{ display: "block", width: "300px", height: "250px", margin: "0 auto" }} />
+                  </div>
                   <TrendingSidebar articles={trendingArticles} prefix={prefix} />
 
                   <CategoriesSidebar categories={categories} prefix={prefix} onSelect={handleCategoryChange} />
+
+                  <div className="hidden lg:block rounded-xl border border-cyan-500/20 bg-black/40 p-2">
+                    <GoogleAd slot="1834567290" format="vertical" style={{ display: "block", width: "300px", height: "600px", margin: "0 auto" }} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -708,6 +726,9 @@ export default function HomePageClient({
         initialHasMore={initialHasMore}
         initialTotal={initialTotal}
       />
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-cyan-500/20 bg-black/85 backdrop-blur-sm p-2 lg:hidden">
+        <GoogleAd slot="4127083649" format="horizontal" className="w-full min-h-[50px]" />
+      </div>
       <Footer />
     </div>
   )

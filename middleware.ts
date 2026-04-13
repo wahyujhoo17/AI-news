@@ -16,6 +16,7 @@ const BYPASS_PREFIXES = [
   "/_next",
   "/sitemap",
   "/robots.txt",
+  "/ads.txt",
   "/favicon",
   "/img",
   "/id", // already on Indonesian version
@@ -84,6 +85,6 @@ export const config = {
      * - _next (static files, HMR)
      * - static files (images, favicon, etc.)
      */
-    "/((?!api|_next/static|_next/image|favicon|img|sitemap|robots).*)",
+    "/((?!api|_next/static|_next/image|favicon|img|sitemap|robots|ads\.txt).*)",
   ],
 }
