@@ -64,7 +64,7 @@ const cheerio = require('cheerio')
 const { pool } = require('./lib/db-worker')
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY_GLOBAL
-const GROQ_API_KEY_LIST = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY_ID
+const GROQ_API_KEY_LIST = process.env.GROQ_API_KEY_ID
 // Fallback models jika primary rate-limited
 const OPENROUTER_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_ID || "openai/gpt-oss-20b:free"
 console.log("[ID-WORKER] API Key:", OPENROUTER_API_KEY ? OPENROUTER_API_KEY.substring(0, 10) + "..." : "missing")
