@@ -91,7 +91,6 @@ export default async function RootLayout({
           crossOrigin="anonymous"
         />
         <script src="https://quge5.com/88/tag.min.js" data-zone="225633" async data-cfasync="false" />
-        <script src="https://nap5k.com/tag.min.js" data-zone="10818984" async data-cfasync="false" />
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;900&display=swap');
           

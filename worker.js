@@ -281,8 +281,8 @@ function stripImageHintArtifacts(text = '') {
       // Strip ** dulu sebelum cek, supaya **EXCERPT:** juga tertangkap
       const t = line.trim().replace(/\*\*/g, '')
       return !/^\s*image[_\s-]?hint\s*[:\-]/i.test(t)
-          && !/^\s*excerpt\s*[:\-]/i.test(t)
-          && !/^\s*category\s*[:\-]/i.test(t)
+        && !/^\s*excerpt\s*[:\-]/i.test(t)
+        && !/^\s*category\s*[:\-]/i.test(t)
     })
     .join('\n')
     // Handle inline kombinasi dalam satu baris, termasuk bold format
@@ -729,6 +729,7 @@ HEADLINE RULES:
 - Subject + Verb + Object, starts with proper noun/org/country (NOT "The", "A", "An")
 - Power words: Reveals, Warns, Slams, Exposes, Confirms, Surges, Collapses, Breaks
 - Numbers/data when available: "Study Finds 73% of...", "5 Countries That..."
+- Must prioritize Entities over Concepts (e.g., "Nvidia Market Cap Surges" is better than "AI Stock Market Surges")
 - NO asterisks (**), NO bold formatting, plain text only
 - GOOD: "Chelsea Drops Fernandez After Heated Exchange Shocks Club Insiders"
 - BAD: "**U.S. Labor Market Surges**", "Breaking News", "The Courtesy Visit"
@@ -743,6 +744,8 @@ ARTICLE RULES:
 - Headings OPTIONAL (max 2), NEVER: Introduction, Background, Conclusion, Summary
 - Tables/diagrams only for structured data
 - Bold (**text**) sparingly, only when it adds clarity
+- Lede: The first paragraph must answer Who, What, Where, When, and Why in under 35 words.
+- Global Context: Provide 1-2 paragraphs explaining how this news affects the global market or international community.
 
 Begin:`
 
@@ -993,35 +996,35 @@ Begin:`
       excerpt = aiExcerptField.replace(/\*\*/g, '').trim()
       console.log(`[EXCERPT] Using structured EXCERPT field (${excerpt.length} chars)`)
     } else {
-    const excerptFieldMatch = rawContent.match(/^EXCERPT:\s*(.+)$/m)
-    if (excerptFieldMatch && excerptFieldMatch[1].trim().length > 30) {
-      excerpt = excerptFieldMatch[1].trim().replace(/\*\*/g, '').trim()
-      console.log(`[EXCERPT] Using AI-generated excerpt (${excerpt.length} chars)`)
-    } else {
-      // Fallback: ambil dari paragraf pertama konten bersih
-      const excerptLines = cleanContent.split('\n').filter(l => l.trim())
-      for (const line of excerptLines) {
-        const t = line.trim()
-        if (!t.startsWith('#') && !t.startsWith('|') && !t.startsWith('-') && t.length > 40) {
-          excerpt = t.replace(/\*\*/g, '').trim()
-          break
+      const excerptFieldMatch = rawContent.match(/^EXCERPT:\s*(.+)$/m)
+      if (excerptFieldMatch && excerptFieldMatch[1].trim().length > 30) {
+        excerpt = excerptFieldMatch[1].trim().replace(/\*\*/g, '').trim()
+        console.log(`[EXCERPT] Using AI-generated excerpt (${excerpt.length} chars)`)
+      } else {
+        // Fallback: ambil dari paragraf pertama konten bersih
+        const excerptLines = cleanContent.split('\n').filter(l => l.trim())
+        for (const line of excerptLines) {
+          const t = line.trim()
+          if (!t.startsWith('#') && !t.startsWith('|') && !t.startsWith('-') && t.length > 40) {
+            excerpt = t.replace(/\*\*/g, '').trim()
+            break
+          }
         }
+        if (!excerpt) excerpt = 'Read the full article for details.'
+        excerpt = excerpt.split('. ').slice(0, 2).join('. ')
+        if (!excerpt.endsWith('.')) excerpt += '.'
+        console.log(`[EXCERPT] Using fallback paragraph excerpt`)
       }
-      if (!excerpt) excerpt = 'Read the full article for details.'
-      excerpt = excerpt.split('. ').slice(0, 2).join('. ')
-      if (!excerpt.endsWith('.')) excerpt += '.'
-      console.log(`[EXCERPT] Using fallback paragraph excerpt`)
-    }
     } // end else (non-structured excerpt)
     // Trim to max 155 chars for meta description
     // Potong excerpt di batas kalimat atau batas kata, max 155 chars
     if (excerpt.length > 155) {
-        const sentenceEnd = excerpt.slice(0, 155).search(/[.!?][^.!?]*$/)
-        if (sentenceEnd > 80) {
-            excerpt = excerpt.slice(0, sentenceEnd + 1).trim()
-        } else {
-            excerpt = excerpt.slice(0, 152).replace(/\s+\S*$/, '').trimEnd() + '...'
-        }
+      const sentenceEnd = excerpt.slice(0, 155).search(/[.!?][^.!?]*$/)
+      if (sentenceEnd > 80) {
+        excerpt = excerpt.slice(0, sentenceEnd + 1).trim()
+      } else {
+        excerpt = excerpt.slice(0, 152).replace(/\s+\S*$/, '').trimEnd() + '...'
+      }
     }
 
     const usage = data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
@@ -1109,8 +1112,8 @@ async function generateArticleOpenRouter(title, sourceContent, sourceUrl) {
   // Rotate through all models until one succeeds
   let lastErr = null
   for (const model of OPENROUTER_FALLBACK_MODELS) {
-  // Same structured format as main generateArticle
-  const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.
+    // Same structured format as main generateArticle
+    const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.
 
 
 
@@ -1142,70 +1145,70 @@ ARTICLE RULES:
 
 Begin:`
 
-  try {
-    const res = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
-      { model, messages: [{ role: 'user', content: prompt }], max_tokens: 4096, temperature: 0.7 },
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY_GLOBAL}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://qbitznews.com',
-          'X-Title': 'QbitzNews Global Worker Fallback',
-        },
-        timeout: 120000
-      }
-    )
-    const text = res.data?.choices?.[0]?.message?.content || ''
-    if (!text) throw new Error('Empty OpenRouter response')
-    console.log(`[OR-FALLBACK] Generated via ${model}: ${title.slice(0, 50)}`)
-    // Structured parser — sama dengan generateArticle
-    const orHeadlineMatch = text.match(/^HEADLINE:\s*(.+)$/im)
-    const orImageHintMatch = text.match(/^IMAGE_HINT:\s*(.+)$/im)
-    const orExcerptMatch = text.match(/^EXCERPT:\s*(.+)$/im)
-    const orCategoryMatch = text.match(/^CATEGORY:\s*(.+)$/im)
-    const orArticleMatch = text.match(/^ARTICLE:\s*\n([\s\S]+)/im)
+    try {
+      const res = await axios.post(
+        'https://openrouter.ai/api/v1/chat/completions',
+        { model, messages: [{ role: 'user', content: prompt }], max_tokens: 4096, temperature: 0.7 },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY_GLOBAL}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://qbitznews.com',
+            'X-Title': 'QbitzNews Global Worker Fallback',
+          },
+          timeout: 120000
+        }
+      )
+      const text = res.data?.choices?.[0]?.message?.content || ''
+      if (!text) throw new Error('Empty OpenRouter response')
+      console.log(`[OR-FALLBACK] Generated via ${model}: ${title.slice(0, 50)}`)
+      // Structured parser — sama dengan generateArticle
+      const orHeadlineMatch = text.match(/^HEADLINE:\s*(.+)$/im)
+      const orImageHintMatch = text.match(/^IMAGE_HINT:\s*(.+)$/im)
+      const orExcerptMatch = text.match(/^EXCERPT:\s*(.+)$/im)
+      const orCategoryMatch = text.match(/^CATEGORY:\s*(.+)$/im)
+      const orArticleMatch = text.match(/^ARTICLE:\s*\n([\s\S]+)/im)
 
-    let orHeadline = orHeadlineMatch ? orHeadlineMatch[1].trim().replace(/\*\*/g, '').replace(/\*/g, '').trim() : ''
-    let orExcerpt = orExcerptMatch ? orExcerptMatch[1].trim().replace(/\*\*/g, '').trim() : ''
-    let orImageHint = orImageHintMatch ? orImageHintMatch[1].trim().replace(/\*\*/g, '').trim() : ''
-    let orCategory = orCategoryMatch ? orCategoryMatch[1].trim() : ''
-    let orBody = orArticleMatch ? orArticleMatch[1].trim() : ''
+      let orHeadline = orHeadlineMatch ? orHeadlineMatch[1].trim().replace(/\*\*/g, '').replace(/\*/g, '').trim() : ''
+      let orExcerpt = orExcerptMatch ? orExcerptMatch[1].trim().replace(/\*\*/g, '').trim() : ''
+      let orImageHint = orImageHintMatch ? orImageHintMatch[1].trim().replace(/\*\*/g, '').trim() : ''
+      let orCategory = orCategoryMatch ? orCategoryMatch[1].trim() : ''
+      let orBody = orArticleMatch ? orArticleMatch[1].trim() : ''
 
-    // Fallback kalau model tidak ikuti format terstruktur
-    if (!orHeadline || !orBody) {
-      console.warn('[OR-FALLBACK] Model did not follow structured format, using legacy parse')
-      const orLines = text.split('\n')
-      let orBodyStart = 0
-      for (let i = 0; i < Math.min(orLines.length, 15); i++) {
-        const ln = orLines[i].trim().replace(/\*\*/g, '')
-        if (!ln) continue
-        if (/^excerpt\s*[:\-]/i.test(ln)) { orExcerpt = orExcerpt || ln.replace(/^\*?\*?excerpt\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
-        if (/^image[_\s-]?hint\s*[:\-]/i.test(ln)) { orImageHint = orImageHint || ln.replace(/^\*?\*?image[_\s-]?hint\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
-        if (/^category\s*[:\-]/i.test(ln)) { orCategory = orCategory || ln.replace(/^\*?\*?category\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
-        if (/^headline\s*[:\-]/i.test(ln)) { orHeadline = orHeadline || ln.replace(/^\*?\*?headline\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
-        if (!orHeadline && ln.length > 15) { orHeadline = ln.replace(/^#+\s*/, '').trim(); orBodyStart = i + 1; continue }
+      // Fallback kalau model tidak ikuti format terstruktur
+      if (!orHeadline || !orBody) {
+        console.warn('[OR-FALLBACK] Model did not follow structured format, using legacy parse')
+        const orLines = text.split('\n')
+        let orBodyStart = 0
+        for (let i = 0; i < Math.min(orLines.length, 15); i++) {
+          const ln = orLines[i].trim().replace(/\*\*/g, '')
+          if (!ln) continue
+          if (/^excerpt\s*[:\-]/i.test(ln)) { orExcerpt = orExcerpt || ln.replace(/^\*?\*?excerpt\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
+          if (/^image[_\s-]?hint\s*[:\-]/i.test(ln)) { orImageHint = orImageHint || ln.replace(/^\*?\*?image[_\s-]?hint\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
+          if (/^category\s*[:\-]/i.test(ln)) { orCategory = orCategory || ln.replace(/^\*?\*?category\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
+          if (/^headline\s*[:\-]/i.test(ln)) { orHeadline = orHeadline || ln.replace(/^\*?\*?headline\*?\*?\s*[:\-]\s*/i, '').trim(); continue }
+          if (!orHeadline && ln.length > 15) { orHeadline = ln.replace(/^#+\s*/, '').trim(); orBodyStart = i + 1; continue }
+        }
+        if (!orBody) {
+          orBody = orLines.slice(orBodyStart).join('\n')
+        }
       }
-      if (!orBody) {
-        orBody = orLines.slice(orBodyStart).join('\n')
-      }
-    }
 
-    // Final cleanup body dari sisa metadata
-    orBody = stripImageHintArtifacts(orBody)
-    if (!orHeadline) orHeadline = title
-    return {
-      title: orHeadline,
-      content: orBody,
-      excerpt: orExcerpt || orBody.split('\n').find(l => l.trim().length > 50) || '',
-      image_hint: orImageHint || title.split(' ').slice(0, 4).join(' '),
-      author: 'AI News Editor',
-      tokens: { prompt: 0, completion: 0, total: 0 },
-      cost: 0,
-      model: model,
-      format: 'markdown',
-    }
-  } catch (err) {
+      // Final cleanup body dari sisa metadata
+      orBody = stripImageHintArtifacts(orBody)
+      if (!orHeadline) orHeadline = title
+      return {
+        title: orHeadline,
+        content: orBody,
+        excerpt: orExcerpt || orBody.split('\n').find(l => l.trim().length > 50) || '',
+        image_hint: orImageHint || title.split(' ').slice(0, 4).join(' '),
+        author: 'AI News Editor',
+        tokens: { prompt: 0, completion: 0, total: 0 },
+        cost: 0,
+        model: model,
+        format: 'markdown',
+      }
+    } catch (err) {
       lastErr = err
       const status = err?.response?.status
       if (status === 429 || status === 503 || status === 500 || !err.response) {
@@ -1583,23 +1586,23 @@ async function processSource(source, options = {}) {
       // then fallback to a more contextual Unsplash search
       const featuredImage = source.noSourceImage
         ? await fetchImageFromUnsplash({
+          title: generated.title,
+          excerpt: generated.excerpt,
+          imageHint: generated.image_hint,
+          categories: categoryRows.map(cat => cat.slug || cat.name),
+          sourceName: source.name,
+        })
+        : (
+          article.sourceImage ||
+          await fetchSourceImage(article.link) ||
+          await fetchImageFromUnsplash({
             title: generated.title,
             excerpt: generated.excerpt,
             imageHint: generated.image_hint,
             categories: categoryRows.map(cat => cat.slug || cat.name),
             sourceName: source.name,
           })
-        : (
-            article.sourceImage ||
-            await fetchSourceImage(article.link) ||
-            await fetchImageFromUnsplash({
-              title: generated.title,
-              excerpt: generated.excerpt,
-              imageHint: generated.image_hint,
-              categories: categoryRows.map(cat => cat.slug || cat.name),
-              sourceName: source.name,
-            })
-          )
+        )
 
       const uniqueFeaturedImage = await ensureUniqueFeaturedImage(featuredImage)
 
@@ -1665,8 +1668,8 @@ async function processSource(source, options = {}) {
       const articleUrl = titleSlug
         ? `https://qbitznews.com/articles/${articleId}-${titleSlug}`
         : `https://qbitznews.com/articles/${articleId}`
-      notifyGoogleIndexing(articleUrl).catch(() => {})
-      notifyBingIndexing(articleUrl).catch(() => {})
+      notifyGoogleIndexing(articleUrl).catch(() => { })
+      notifyBingIndexing(articleUrl).catch(() => { })
     } catch (err) {
       console.error(`Failed to generate article from ${article.title} :`, err.message)
     }

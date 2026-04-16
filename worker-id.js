@@ -63,14 +63,15 @@ const Parser = require('rss-parser')
 const cheerio = require('cheerio')
 const { pool } = require('./lib/db-worker')
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY
-const OPENROUTER_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_ID || 'openai/gpt-oss-20b:free'
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY_GLOBAL
 // Fallback models jika primary rate-limited
+const OPENROUTER_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_ID || "openai/gpt-oss-20b:free"
+console.log("[ID-WORKER] API Key:", OPENROUTER_API_KEY ? OPENROUTER_API_KEY.substring(0, 10) + "..." : "missing")
 const OPENROUTER_FALLBACK_MODELS = [
-    'openai/gpt-oss-20b:free',
-    'openai/gpt-oss-120b:free',
-    'stepfun/step-3.5-flash:free',
+    'z-ai/glm-4.5-air:free',
     'nvidia/nemotron-3-super-120b-a12b:free',
+    'openai/gpt-oss-20b:free',
+    'minimax/minimax-m2.5:free'
 ]
 let _currentModelIndex = 0
 function getNextModel() {
@@ -94,7 +95,7 @@ if (!OPENROUTER_API_KEY) console.error('[ID-WORKER] WARNING: OPENROUTER_API_KEY 
 const ID_FEEDS = [
     // ===== INDONESIA (noSourceImage=true: gambar lokal berisi watermark) =====
     { id: 'id-001', name: 'Detik News', url: 'https://news.detik.com/rss', noSourceImage: false },
-    { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss/terkini.rss', noSourceImage: false },
+    { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss', noSourceImage: false },
     { id: 'id-003', name: 'Tempo', url: 'https://rss.tempo.co/nasional', noSourceImage: false },
     { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/berita/nasional', noSourceImage: false },
     { id: 'id-005', name: 'CNN Indonesia', url: 'https://www.cnnindonesia.com/rss', noSourceImage: false },
