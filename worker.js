@@ -721,7 +721,7 @@ OUTPUT FORMAT — respond with exactly these labeled sections, nothing else:
 HEADLINE: Write SEO headline here — plain text, no asterisks, no markdown (55-80 chars)
 IMAGE_HINT: 4-8 English keywords for Unsplash (concrete visuals only, no names/orgs)
 EXCERPT: Compelling 1-2 sentence teaser — plain text, no asterisks (120-155 chars)
-CATEGORY: One of: Technology | Business | Sports | Football | Health | Entertainment | Politics | Environment | Education | Crime | Crypto | General
+CATEGORY: One of: Technology | Business | Sports | Football | Health | Entertainment | Politics | Environment | Education | Crime | Crypto | General | Music | Science | AI (choose the best fit, or General if unsure)
 ARTICLE:
 Article body in Markdown starts here (minimum 500 words)
 
