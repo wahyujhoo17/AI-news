@@ -707,58 +707,6 @@ async function fetchHTML(url, selector = 'article') {
 }
 
 async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
-async function fetchFullArticleContent(url) {
-  try {
-    const response = await axios.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      timeout: 15000,
-    });
-    const $ = cheerio.load(response.data);
-    
-    // Selector prioritas untuk konten artikel
-    const selectors = [
-      "article", 
-      ".post-content", 
-      ".entry-content", 
-      ".story-content",
-      ".article-content", 
-      ".content", 
-      "main",
-      "[role=\"main\"]"
-    ];
-    
-    let content = "";
-    for (const sel of selectors) {
-      const el = $(sel).first();
-      if (el.length) {
-        // Ambil semua paragraf dalam elemen tersebut
-        const paragraphs = el.find("p").map((i, p) => $(p).text().trim()).get();
-        content = paragraphs.join(" ").replace(/\s+/g, " ").trim();
-        if (content.length > 300) {
-          console.log(`[FULL-CONTENT] Found content with selector "${sel}", length: ${content.length} chars`);
-          break;
-        }
-      }
-    }
-    
-    // Fallback: ambil semua paragraf di body jika selector di atas tidak menghasilkan cukup teks
-    if (content.length < 300) {
-      const allParagraphs = $("body p").map((i, p) => $(p).text().trim()).get();
-      content = allParagraphs.join(" ").replace(/\s+/g, " ").trim();
-      console.log(`[FULL-CONTENT] Fallback to body paragraphs, length: ${content.length} chars`);
-    }
-    
-    // Potong jika terlalu panjang (max 10000 chars untuk efisiensi)
-    if (content.length > 10000) {
-      content = content.substring(0, 10000) + "...";
-    }
-    
-    return content;
-  } catch (error) {
-    console.error("[FULL-CONTENT] Error fetching full article:", error.message);
-    return "";
-  }
-}
   // Groq-only (no fallback)
   const groqKey = groqManager.getNextKey()
   const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
@@ -1536,18 +1484,6 @@ async function processSource(source, options = {}) {
   } else {
     articles = await fetchHTML(source.url)
   }
-  
-  // Filter artikel usang: abaikan artikel yang lebih tua dari 7 hari
-  const now = new Date();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const freshArticles = [];
-  for (const article of articles) {
-    const pubDate = article.pubDate ? new Date(article.pubDate) : new Date();
-    if (pubDate >= sevenDaysAgo) {
-      freshArticles.push(article);
-    }
-  }
-  articles = freshArticles;
 
   if (articles.length === 0) {
     console.log("No articles found for", source.name)
@@ -1555,6 +1491,7 @@ async function processSource(source, options = {}) {
     return 0
   }
 
+  const now = new Date().toISOString()
   if (source.id < 900) await logCrawl(source.id, "started")
 
   let generatedCount = 0
@@ -1597,26 +1534,7 @@ async function processSource(source, options = {}) {
       console.log(`[PROCESS] Source check passed for ${source.name}: ${article.title}`)
 
 
-      // Fallback scraping: jika konten RSS terlalu pendek, coba ambil konten lengkap dari URL artikel
-      let sourceContent = article.content;
-      if (sourceContent.length < 500 && article.link && article.link.startsWith("http")) {
-        console.log("[FALLBACK] RSS content too short (" + sourceContent.length + " chars), fetching full article from " + article.link.slice(0,80) + "...");
-        const fullContent = await fetchFullArticleContent(article.link);
-        if (fullContent && fullContent.length > sourceContent.length) {
-          console.log("[FALLBACK] Using full content (" + fullContent.length + " chars, +" + (fullContent.length - sourceContent.length) + " more)");
-          sourceContent = fullContent;
-        } else {
-          console.log("[FALLBACK] Full content fetch failed or not longer, using original RSS content");
-        }
-      }
-
-      console.log(`[CONTENT-LENGTH] Source content length: ${sourceContent.length} chars`);
-      if (sourceContent.length < 300) {
-        console.log(`[SKIP] Source content too short (${sourceContent.length} chars), skipping`);
-        continue;
-      }
-
-            const generated = await generateArticle(article.title, sourceContent, article.link)
+      const generated = await generateArticle(article.title, article.content, article.link)
 
       // Verifikasi 2: Cek judul artikel yang sudah di-generate
       const existingGenerated = await pool.query(

@@ -278,22 +278,7 @@ ATURAN ARTIKEL:
     }
 
     try {
-        let response;
-        const groqKey = process.env.GROQ_API_KEY_ID;
-        if (groqKey) {
-            const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-            response = await axios.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                { model: groqModel, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                { headers: { "Authorization": "Bearer " + groqKey, "Content-Type": "application/json" }, timeout: 120000 }
-            );
-        } else {
-            response = await axios.post(
-                OPENROUTER_ENDPOINT,
-                { model: getNextModel(), messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                { headers: { ...orHeaders, "Authorization": "Bearer " + OPENROUTER_API_KEY }, timeout: 120000 }
-            );
-        }
+        const response = await callOpenRouter(getNextModel())
 
         const fullContent = response.data?.choices?.[0]?.message?.content || ''
         if (!fullContent) throw new Error('Empty content from OpenRouter')
@@ -490,22 +475,7 @@ ATURAN ARTIKEL:
             rotateModel()
             try {
                 const retryModel = getNextModel()
-                let retryRes;
-                const groqKey = process.env.GROQ_API_KEY_ID;
-                if (groqKey) {
-                    const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-                    retryRes = await axios.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        { model: groqModel, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                        { headers: { "Authorization": "Bearer " + groqKey, "Content-Type": "application/json" }, timeout: 120000 }
-                    );
-                } else {
-                    retryRes = await axios.post(
-                        OPENROUTER_ENDPOINT,
-                        { model: retryModel, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                        { headers: { ...orHeaders, "Authorization": "Bearer " + OPENROUTER_API_KEY }, timeout: 120000 }
-                    );
-                }
+                const retryRes = await callOpenRouter(retryModel)
                 const retryChoice = retryRes.data.choices?.[0]
                 if (retryChoice?.message?.content) {
                     console.log(`[ID-WORKER] Retry OK with model: ${retryModel}`)

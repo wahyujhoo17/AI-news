@@ -706,7 +706,6 @@ async function fetchHTML(url, selector = 'article') {
   }
 }
 
-async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
 async function fetchFullArticleContent(url) {
   try {
     const response = await axios.get(url, {
@@ -735,7 +734,7 @@ async function fetchFullArticleContent(url) {
         const paragraphs = el.find("p").map((i, p) => $(p).text().trim()).get();
         content = paragraphs.join(" ").replace(/\s+/g, " ").trim();
         if (content.length > 300) {
-          console.log(`[FULL-CONTENT] Found content with selector "${sel}", length: ${content.length} chars`);
+          console.log(\`[FULL-CONTENT] Found content with selector "\${sel}", length: \${content.length} chars\`);
           break;
         }
       }
@@ -745,7 +744,7 @@ async function fetchFullArticleContent(url) {
     if (content.length < 300) {
       const allParagraphs = $("body p").map((i, p) => $(p).text().trim()).get();
       content = allParagraphs.join(" ").replace(/\s+/g, " ").trim();
-      console.log(`[FULL-CONTENT] Fallback to body paragraphs, length: ${content.length} chars`);
+      console.log(\`[FULL-CONTENT] Fallback to body paragraphs, length: \${content.length} chars\`);
     }
     
     // Potong jika terlalu panjang (max 10000 chars untuk efisiensi)
@@ -759,6 +758,8 @@ async function fetchFullArticleContent(url) {
     return "";
   }
 }
+
+async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
   // Groq-only (no fallback)
   const groqKey = groqManager.getNextKey()
   const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
@@ -1555,6 +1556,7 @@ async function processSource(source, options = {}) {
     return 0
   }
 
+  const now = new Date().toISOString()
   if (source.id < 900) await logCrawl(source.id, "started")
 
   let generatedCount = 0
