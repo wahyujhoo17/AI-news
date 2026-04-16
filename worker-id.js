@@ -64,7 +64,7 @@ const cheerio = require('cheerio')
 const { pool } = require('./lib/db-worker')
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY_GLOBAL
-const GROQ_API_KEY_ID = process.env.GROQ_API_KEY_ID
+const GROQ_API_KEY_LIST = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY_ID
 // Fallback models jika primary rate-limited
 const OPENROUTER_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_ID || "openai/gpt-oss-20b:free"
 console.log("[ID-WORKER] API Key:", OPENROUTER_API_KEY ? OPENROUTER_API_KEY.substring(0, 10) + "..." : "missing")
@@ -85,6 +85,65 @@ function rotateModel() {
 }
 const OPENROUTER_MODEL = OPENROUTER_MODEL_PRIMARY
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
+
+class GroqKeyManager {
+    constructor(keysEnv) {
+        const keys = keysEnv.split(',').map(k => k.trim()).filter(k => k.length > 0)
+        if (keys.length === 0) throw new Error('GROQ API key list kosong')
+
+        this.keys = keys
+        this.currentIndex = 0
+        this.cooldownTimes = {}
+        this.DEFAULT_COOLDOWN_MS = 10 * 60 * 1000 // 10 menit
+
+        this.keys.forEach(key => {
+            this.cooldownTimes[key] = 0
+        })
+    }
+
+    getNextKey() {
+        const availableKeys = this.keys.filter(key => this.cooldownTimes[key] <= Date.now())
+        if (availableKeys.length === 0) {
+            console.warn('[ID-WORKER] Semua GROQ key sedang cooldown, memilih key berikutnya')
+            this.currentIndex = (this.currentIndex + 1) % this.keys.length
+            return this.keys[this.currentIndex]
+        }
+
+        this.currentIndex = (this.currentIndex + 1) % this.keys.length
+        const candidate = this.keys[this.currentIndex]
+        if (this.cooldownTimes[candidate] <= Date.now()) return candidate
+
+        const fallback = availableKeys[0]
+        this.currentIndex = this.keys.indexOf(fallback)
+        return fallback
+    }
+
+    recordSuccess(key) {
+        if (key && this.cooldownTimes[key] !== undefined) {
+            this.cooldownTimes[key] = 0
+        }
+    }
+
+    recordFailure(key, errorType, cooldownMs) {
+        if (!key || this.cooldownTimes[key] === undefined) return
+        if (errorType === 'rate_limit_exceeded') {
+            const cd = cooldownMs || this.DEFAULT_COOLDOWN_MS
+            this.cooldownTimes[key] = Date.now() + cd
+            console.warn(`[ID-WORKER] GROQ key ...${key.slice(-6)} rate-limited, cooldown ${Math.round(cd / 1000)}s`)
+        }
+    }
+}
+
+let groqKeyManager = null
+if (GROQ_API_KEY_LIST) {
+    try {
+        groqKeyManager = new GroqKeyManager(GROQ_API_KEY_LIST)
+        console.log(`[ID-WORKER] GROQ key manager inisialisasi dengan ${groqKeyManager.keys.length} key(s)`)
+    } catch (err) {
+        console.error('[ID-WORKER] Gagal membuat GROQ key manager:', err.message)
+        groqKeyManager = null
+    }
+}
 
 console.log('[ID-WORKER] Starting Indonesian news worker (OpenRouter AI)')
 console.log('[ID-WORKER] Model primary:', OPENROUTER_MODEL_PRIMARY, '| Fallbacks:', OPENROUTER_FALLBACK_MODELS.length)
@@ -277,9 +336,9 @@ ATURAN ARTIKEL:
         'X-Title': 'QbitzNews Indonesian Worker',
     }
 
+    let groqKey = groqKeyManager ? groqKeyManager.getNextKey() : process.env.GROQ_API_KEY_ID;
     try {
         let response;
-        const groqKey = process.env.GROQ_API_KEY_ID;
         if (groqKey) {
             const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
             response = await axios.post(
@@ -287,6 +346,7 @@ ATURAN ARTIKEL:
                 { model: groqModel, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
                 { headers: { "Authorization": "Bearer " + groqKey, "Content-Type": "application/json" }, timeout: 120000 }
             );
+            if (groqKeyManager) groqKeyManager.recordSuccess(groqKey)
         } else {
             response = await axios.post(
                 OPENROUTER_ENDPOINT,
@@ -310,28 +370,54 @@ ATURAN ARTIKEL:
         const metadataLineIndices = new Set()
 
         let aiTitleFromField = ''
+        const metadataLabelPatterns = [
+            { name: 'title', regex: /^judul(?:\s*[:\-]|\s+)\s*(.*)$/i },
+            { name: 'image_hint', regex: /^image[_\s-]?hint(?:\s*[:\-]|\s+)\s*(.*)$/i },
+            { name: 'category', regex: /^category(?:\s*[:\-]|\s+)\s*(.*)$/i },
+            { name: 'excerpt', regex: /^excerpt(?:\s*[:\-]|\s+)\s*(.*)$/i },
+        ]
+        let pendingMetaField = null
+
         for (let i = 0; i < allLines.length; i++) {
             const line = allLines[i].trim()
-            const titleMatch = line.match(/^judul\s*[:\-]\s*(.+)$/i)
-            if (titleMatch && titleMatch[1].trim().length > 10) {
-                aiTitleFromField = titleMatch[1].trim().replace(/^\[|\]$/g, '').trim()
-                metadataLineIndices.add(i); continue
+            if (/^artikel(?:\s*[:\-]?\s*)$/i.test(line)) {
+                metadataLineIndices.add(i)
+                pendingMetaField = null
+                continue
             }
-            const imgMatch = line.match(/^image[_\s-]?hint\s*[:\-]\s*(.+)$/i)
-            if (imgMatch) { aiImageHint = imgMatch[1].trim(); metadataLineIndices.add(i); continue }
-            const catMatch = line.match(/^category\s*[:\-]\s*(.+)$/i)
-            if (catMatch) {
-                aiCategories = catMatch[1].split(',').map(c => c.trim()).filter(c => VALID_CATEGORIES.has(c))
-                metadataLineIndices.add(i); continue
+
+            let matchedMeta = false
+            for (const pattern of metadataLabelPatterns) {
+                const match = line.match(pattern.regex)
+                if (!match) continue
+                matchedMeta = true
+                metadataLineIndices.add(i)
+                const value = match[1].trim()
+                if (value) {
+                    if (pattern.name === 'title' && value.length > 10) {
+                        aiTitleFromField = value.replace(/^\[|\]$/g, '').trim()
+                    }
+                    if (pattern.name === 'image_hint') aiImageHint = value
+                    if (pattern.name === 'category') aiCategories = value.split(',').map(c => c.trim()).filter(c => VALID_CATEGORIES.has(c))
+                    if (pattern.name === 'excerpt' && value.length > 20) aiExcerpt = value
+                    pendingMetaField = null
+                } else {
+                    pendingMetaField = pattern.name
+                }
+                break
             }
-            const excMatch = line.match(/^excerpt\s*[:\-]\s*(.+)$/i)
-            if (excMatch && excMatch[1].trim().length > 20) {
-                aiExcerpt = excMatch[1].trim()
-                metadataLineIndices.add(i); continue
-            }
-            // Tandai baris ARTIKEL: sebagai pemisah body
-            if (/^artikel\s*[:\-]?$/i.test(line)) {
-                metadataLineIndices.add(i); continue
+            if (matchedMeta) continue
+
+            if (pendingMetaField && line) {
+                metadataLineIndices.add(i)
+                if (pendingMetaField === 'title' && line.length > 10) {
+                    aiTitleFromField = line.replace(/^\[|\]$/g, '').trim()
+                }
+                if (pendingMetaField === 'image_hint') aiImageHint = line
+                if (pendingMetaField === 'category') aiCategories = line.split(',').map(c => c.trim()).filter(c => VALID_CATEGORIES.has(c))
+                if (pendingMetaField === 'excerpt' && line.length > 20) aiExcerpt = line
+                pendingMetaField = null
+                continue
             }
         }
 
@@ -376,14 +462,14 @@ ATURAN ARTIKEL:
 
         // Bersihkan sisa metadata yang mungkin masih masuk ke body (safety net)
         content = content
-            .replace(/^judul\s*[:\-][^\n]*/gim, '')
-            .replace(/^artikel\s*[:\-]?\s*/gim, '')
-            .replace(/^image[_\s-]?hint\s*[:\-][^\n]*/gim, '')
-            .replace(/^excerpt\s*[:\-][^\n]*/gim, '')
-            .replace(/^category\s*[:\-][^\n]*/gim, '')
+            .replace(/^judul(?:\s*[:\-]|\s+)[^\n]*/gim, '')
+            .replace(/^artikel(?:\s*[:\-]?\s*)/gim, '')
+            .replace(/^image[_\s-]?hint(?:\s*[:\-]|\s+)[^\n]*/gim, '')
+            .replace(/^excerpt(?:\s*[:\-]|\s+)[^\n]*/gim, '')
+            .replace(/^category(?:\s*[:\-]|\s+)[^\n]*/gim, '')
             .replace(/^baris\s*\d+\s*[:\-]?\s*/gim, '')
-            .replace(/^source\s*[:\-][^\n]*/gim, '')
-            .replace(/^sumber\s*[:\-][^\n]*/gim, '')
+            .replace(/^source(?:\s*[:\-]|\s+)[^\n]*/gim, '')
+            .replace(/^sumber(?:\s*[:\-]|\s+)[^\n]*/gim, '')
             .replace(/\n{3,}/g, '\n\n')
             .trim()
 
@@ -486,19 +572,23 @@ ATURAN ARTIKEL:
         }
     } catch (err) {
         if (err.response?.status === 429) {
-            console.warn(`[ID-WORKER] OpenRouter rate limit — rotating model and retrying...`)
+            console.warn(`[ID-WORKER] GROQ/OpenRouter rate limit — rotating model/key and retrying...`)
+            if (groqKeyManager && groqKey) {
+                groqKeyManager.recordFailure(groqKey, 'rate_limit_exceeded')
+            }
             rotateModel()
             try {
                 const retryModel = getNextModel()
                 let retryRes;
-                const groqKey = process.env.GROQ_API_KEY_ID;
-                if (groqKey) {
+                const retryGroqKey = groqKeyManager ? groqKeyManager.getNextKey() : process.env.GROQ_API_KEY_ID;
+                if (retryGroqKey) {
                     const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
                     retryRes = await axios.post(
                         "https://api.groq.com/openai/v1/chat/completions",
                         { model: groqModel, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                        { headers: { "Authorization": "Bearer " + groqKey, "Content-Type": "application/json" }, timeout: 120000 }
+                        { headers: { "Authorization": "Bearer " + retryGroqKey, "Content-Type": "application/json" }, timeout: 120000 }
                     );
+                    if (groqKeyManager) groqKeyManager.recordSuccess(retryGroqKey)
                 } else {
                     retryRes = await axios.post(
                         OPENROUTER_ENDPOINT,
