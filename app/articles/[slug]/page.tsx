@@ -169,10 +169,34 @@ function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page")
   return "text-base"
 }
 
-function renderMarkdownContent(content: string, inlineRelatedItems?: React.ReactNode[]) {
-  if (!content) return null
-
+function preprocessArticleContent(content: string): string {
+  if (!content) return ""
   const lines = content.split("\n")
+  const processedLines: string[] = []
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim()
+    // Skip lines that start with metadata fields (IMAGE_HINT, EXCERPT, CATEGORY, ARTIKEL)
+    // Handle cases with asterisks like **IMAGE_HINT** or *IMAGE_HINT*
+    const metadataMatch = trimmedLine.match(/^\**\s*(IMAGE_HINT|EXCERPT|CATEGORY|ARTIKEL)\s*\**[\s:]*/i)
+    if (metadataMatch) {
+      continue
+    }
+    // Also remove metadata patterns that might appear mid-line
+    const cleanedLine = line.replace(/^\s*\**\s*(IMAGE_HINT|EXCERPT|CATEGORY|ARTIKEL)\s*\**[\s:]*/gi, "")
+    if (cleanedLine.trim()) {
+      processedLines.push(cleanedLine)
+    }
+  }
+  
+  return processedLines.join("\n")
+}
+
+function renderMarkdownContent(content: string, inlineRelatedItems?: React.ReactNode[]) {
+  const processedContent = preprocessArticleContent(content)
+  if (!processedContent) return null
+
+  const lines = processedContent.split("\n")
   const elements: React.ReactElement[] = []
   let i = 0
   let paragraphCount = 0
@@ -181,7 +205,7 @@ function renderMarkdownContent(content: string, inlineRelatedItems?: React.React
     const line = lines[i]
     const trimmedLine = line.trim()
 
-    if (trimmedLine === "---" || trimmedLine === "***" || trimmedLine === "___") {
+    if (trimmedLine === "---" || trimmedLine === "***" || trimmedLine === "___" || /^={3,}$/.test(trimmedLine)) {
       i++
       continue
     }
