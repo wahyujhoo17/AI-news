@@ -169,10 +169,95 @@ function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page")
   return "text-base"
 }
 
-function renderMarkdownContent(content: string, inlineRelatedItems?: React.ReactNode[]) {
+function normalizeContentLineForCompare(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/["'`*_~#.,:;!?()[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function sanitizeArticleContent(content: string, articleTitle?: string): string {
+  if (!content) return ""
+
+  let lines = content.split("\n")
+  const titleNormalized = articleTitle ? normalizeContentLineForCompare(articleTitle) : ""
+  const aiLabelPattern = /^(IMAGE_HINT|EXCERPT|SUMMARY|RINGKASAN|CATEGORY|CATEGORIES|KATEGORI|ARTIKEL|ARTICLE|TITLE|JUDUL|BACA\s+JUGA|READ\s+ALSO|TAGS?)\b(.*)$/i
+
+  const articleStartMarkerPattern = /^(?:\*\*)?\s*(ARTIKEL|ARTICLE)\s*(?:\*\*)?\s*[:\-]?\s*$/i
+  const hasTopAiMeta = lines
+    .slice(0, 40)
+    .some((line) => /IMAGE_HINT|EXCERPT|CATEGORY|KATEGORI|RINGKASAN|SUMMARY/i.test(line))
+  const articleStartIndex = lines.findIndex((line) => articleStartMarkerPattern.test(line.trim()))
+
+  if (hasTopAiMeta && articleStartIndex >= 0) {
+    lines = lines.slice(articleStartIndex + 1)
+    while (lines.length > 0 && !lines[0].trim()) {
+      lines.shift()
+    }
+  }
+
+  const cleanedLines: string[] = []
+  let skipMetadataBlockUntilBlank = false
+
+  for (const line of lines) {
+    const trimmedLine = line.trim()
+
+    if (skipMetadataBlockUntilBlank) {
+      if (!trimmedLine) {
+        skipMetadataBlockUntilBlank = false
+      }
+      continue
+    }
+
+    if (!trimmedLine) {
+      cleanedLines.push(line)
+      continue
+    }
+
+    const plainLine = trimmedLine
+      .replace(/^[-*>\s]+/, "")
+      .replace(/^[`*_]+|[`*_]+$/g, "")
+      .trim()
+
+    const plainLabelLine = plainLine
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/__(.*?)__/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .trim()
+
+    const plainNormalized = normalizeContentLineForCompare(plainLabelLine)
+    const hasDuplicatedTitle = Boolean(titleNormalized) && plainNormalized === titleNormalized
+
+    const aiLabelMatch = plainLabelLine.match(aiLabelPattern)
+    const hasAiArtifactPrefix = Boolean(aiLabelMatch)
+    const hasAiArtifactLabelOnly = /^(CATEGORY|CATEGORIES|KATEGORI|ARTIKEL|ARTICLE|TITLE|JUDUL|TAGS?)\s*$/i.test(plainLabelLine)
+    const looksLikeCategoryValueOnly = /^[A-Za-zÀ-ÿ0-9&/\-\s]+(?:,\s*[A-Za-zÀ-ÿ0-9&/\-\s]+)+$/.test(plainLabelLine) && plainLabelLine.split(",").length <= 5
+    const hasStartedRealContent = cleanedLines.some((item) => item.trim().length > 0)
+
+    if (hasAiArtifactPrefix) {
+      const labelRemainder = (aiLabelMatch?.[2] || "").trim()
+      const inlineValue = labelRemainder.replace(/^[:\-]\s*/, "").trim()
+      if (!hasStartedRealContent && inlineValue.length === 0) {
+        skipMetadataBlockUntilBlank = true
+      }
+      continue
+    }
+
+    if (hasDuplicatedTitle || hasAiArtifactLabelOnly || (!hasStartedRealContent && looksLikeCategoryValueOnly)) {
+      continue
+    }
+
+    cleanedLines.push(line)
+  }
+
+  return cleanedLines.join("\n")
+}
+
+function renderMarkdownContent(content: string, inlineRelatedItems?: React.ReactNode[], articleTitle?: string) {
   if (!content) return null
 
-  const lines = content.split("\n")
+  const lines = sanitizeArticleContent(content, articleTitle).split("\n")
   const elements: React.ReactElement[] = []
   let i = 0
   let paragraphCount = 0
@@ -181,12 +266,32 @@ function renderMarkdownContent(content: string, inlineRelatedItems?: React.React
     const line = lines[i]
     const trimmedLine = line.trim()
 
-    if (trimmedLine === "---" || trimmedLine === "***" || trimmedLine === "___") {
+    if (!trimmedLine) {
       i++
       continue
     }
 
-    if (!trimmedLine) {
+    // Support setext headings: "Title" followed by "====" or "----".
+    if (i + 1 < lines.length) {
+      const nextTrimmed = lines[i + 1].trim()
+      const isSetextH1 = /^={3,}$/.test(nextTrimmed)
+      const isSetextH2 = /^-{3,}$/.test(nextTrimmed)
+      if ((isSetextH1 || isSetextH2) && !trimmedLine.startsWith("#")) {
+        elements.push(
+          <h2 key={`setext-heading-${i}`} className={`${isSetextH1 ? "text-3xl" : "text-2xl"} font-bold text-cyan-300 my-6 mt-8`}>
+            {trimmedLine}
+          </h2>
+        )
+        i += 2
+        continue
+      }
+    }
+
+    // Render markdown horizontal rules as visual lines.
+    if (/^(?:-{3,}|\*{3,}|_{3,}|={3,})$/.test(trimmedLine)) {
+      elements.push(
+        <hr key={`rule-${i}`} className="my-8 border-0 h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
+      )
       i++
       continue
     }
@@ -747,7 +852,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                     {relItem.title}
                   </Link>
                 </div>
-              ))
+              )),
+              article.title
             )}
           </div>
 
