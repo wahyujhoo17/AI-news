@@ -248,6 +248,119 @@ async function fetchRSS(url) {
     }
 }
 
+const ENGLISH_HEADLINE_WORDS = new Set([
+    'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'by', 'for', 'from', 'with', 'to', 'into', 'over',
+    'new', 'latest', 'update', 'live', 'top', 'best', 'how', 'why', 'what', 'when', 'where', 'who',
+    'boosts', 'boost', 'launches', 'launch', 'reveals', 'reveal', 'reports', 'report', 'says', 'say',
+    'claims', 'claim', 'warns', 'warn', 'adds', 'add', 'unveils', 'unveil', 'confirms', 'confirm',
+    'denies', 'deny', 'beats', 'beat', 'wins', 'win', 'loses', 'lose', 'plans', 'plan', 'shifts', 'shift',
+    'exits', 'exit', 'grows', 'grow', 'falls', 'fall', 'rises', 'rise', 'slips', 'slip', 'drops', 'drop',
+    'cuts', 'cut', 'aims', 'aim', 'joins', 'join', 'names', 'name', 'takes', 'take', 'faces', 'face',
+    'pushes', 'push', 'introduces', 'introduce', 'partners', 'partner', 'signs', 'sign', 'approves', 'approve',
+    'blocks', 'block', 'bans', 'ban', 'eyes', 'eye', 'could', 'would', 'should', 'will', 'after', 'before', 'amid',
+    'deal', 'team', 'game', 'users', 'market', 'stocks', 'shares', 'watch', 'inside', 'today', 'breaking',
+])
+
+const INDONESIAN_HEADLINE_WORDS = new Set([
+    'yang', 'dan', 'untuk', 'dengan', 'soal', 'karena', 'akan', 'usai', 'resmi', 'baru', 'naik', 'turun',
+    'ungkap', 'meluncurkan', 'menang', 'pecat', 'gagal', 'guncang', 'bocor', 'ditangkap', 'dilarang',
+    'lolos', 'kalahkan', 'perbarui', 'serukan', 'desak', 'akui', 'bantah', 'investasi', 'ekspansi', 'rugi',
+])
+
+function normalizeHeadlineText(text = '') {
+    return String(text || '')
+        .replace(/\s+/g, ' ')
+        .replace(/^[\s"'“”`•\-]+|[\s"'“”`•\-]+$/g, '')
+        .trim()
+}
+
+function stripHeadlineLabel(text = '') {
+    return normalizeHeadlineText(text)
+        .replace(/^(judul|title|headline|heading)\s*[:\-]\s*/i, '')
+        .replace(/^\[(judul|title|headline|heading)\]\s*/i, '')
+        .trim()
+}
+
+function headlineTokens(text = '') {
+    return normalizeHeadlineText(text)
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, ' ')
+        .split(/\s+/)
+        .map(token => token.trim())
+        .filter(Boolean)
+}
+
+function extractHeadlineFromModel(text = '') {
+    const firstLine = String(text || '')
+        .split('\n')
+        .map(line => line.trim())
+        .find(Boolean) || ''
+
+    return stripHeadlineLabel(
+        firstLine
+            .replace(/^["'“”`]+|["'“”`]+$/g, '')
+    )
+}
+
+function titleNeedsRewrite(title = '') {
+    const clean = normalizeHeadlineText(title)
+    if (!clean || clean.length < 15) return true
+
+    const tokens = headlineTokens(clean)
+    const englishHits = tokens.filter(token => ENGLISH_HEADLINE_WORDS.has(token)).length
+    const indonesianHits = tokens.filter(token => INDONESIAN_HEADLINE_WORDS.has(token)).length
+    const englishSurface = /\b(the|a|an|new|latest|update|boosts|launches|reveals|reports|says|claims|how|why|what|when|where|who|live|breaking)\b/i.test(clean)
+    const genericSurface = /^(situasi terkini|berita terkini|update terbaru|apa yang terjadi|yang perlu diketahui|inilah|ini dia|fakta mengejutkan)$/i.test(clean)
+
+    return genericSurface || englishSurface || (englishHits >= 1 && englishHits >= indonesianHits && tokens.length <= 14)
+}
+
+async function refineIndonesianHeadline({ title, sourceTitle, sourceContent, excerpt, content, categories, runModel }) {
+    const cleanTitle = stripHeadlineLabel(title)
+    if (!titleNeedsRewrite(cleanTitle)) return cleanTitle
+
+    if (typeof runModel !== 'function') return cleanTitle
+
+    const contextText = [
+        `Judul sumber: ${sourceTitle || ''}`,
+        `Judul saat ini: ${cleanTitle || ''}`,
+        `Kategori: ${(categories || []).join(', ') || 'Berita'}`,
+        `Ringkasan: ${(excerpt || content || '').slice(0, 600)}`,
+        `Konteks sumber: ${(sourceContent || '').slice(0, 1200)}`,
+    ].join('\n')
+
+    const rewriteMessages = [
+        {
+            role: 'system',
+            content: 'Kamu adalah editor judul berita Indonesia. Tulis hanya satu judul final dalam bahasa Indonesia yang natural, tajam, dan SEO-friendly. Jangan memakai bahasa Inggris kecuali nama diri, merek, atau produk.',
+        },
+        {
+            role: 'user',
+            content: `Buat ulang judul berikut agar benar-benar dalam bahasa Indonesia, lebih menarik, dan tetap akurat.
+
+Syarat wajib:
+- Output hanya satu baris judul
+- Tidak boleh ada penjelasan tambahan, tanda kutip, atau label
+- Panjang ideal 55-90 karakter
+- Gunakan struktur headline media Indonesia yang natural, bukan terjemahan harfiah
+- Hindari kata-kata Inggris seperti update, latest, reveals, launches, boosts, reports, says, live
+- Jika ada angka atau dampak penting, tampilkan secara jelas
+
+${contextText}`,
+        },
+    ]
+
+    try {
+        const rewriteResponse = await runModel(rewriteMessages, { maxTokens: 160, temperature: 0.2 })
+        const candidate = extractHeadlineFromModel(rewriteResponse)
+        if (candidate && !titleNeedsRewrite(candidate)) return candidate
+    } catch (error) {
+        console.warn(`[ID-WORKER] Headline rewrite failed: ${error.message}`)
+    }
+
+    return cleanTitle
+}
+
 async function generateArticleWithOpenRouter(sourceTitle, sourceContent, sourceName) {
     const prompt = `Kamu adalah jurnalis profesional Indonesia untuk portal berita digital qbitznews.com.
 Sumber berita mungkin dalam bahasa Inggris — WAJIB terjemahkan dan tulis SELURUH artikel dalam bahasa Indonesia.
@@ -277,6 +390,7 @@ ATURAN WAJIB:
 
 ATURAN JUDUL (wajib CTR tinggi, bahasa alami):
 - Spesifik: sebut siapa/apa/angka penting jika tersedia di artikel
+- Jika sumber berita berbahasa Inggris, JANGAN terjemahkan secara harfiah; ubah jadi headline berita Indonesia yang natural
 - Gunakan kata kerja yang LAZIM dipakai media berita Indonesia, sesuai konteks:
   * Olahraga: Tumbang, Takluk, Menang, Kalahkan, Hancurkan, Hantam, Susul, Geser, Cedera, Absen, Comeback, Kunci, Lolos, Tersingkir, Raih
   * Politik/Hukum: Ditetapkan, Ditangkap, Dicopot, Mundur, Lantik, Sahkan, Tolak, Gugat, Vonis, Pecat
@@ -337,25 +451,30 @@ ATURAN ARTIKEL:
     }
 
     let groqKey = groqKeyManager ? groqKeyManager.getNextKey() : process.env.GROQ_API_KEY_ID;
-    try {
-        let response;
+
+    async function runModel(messages, { maxTokens = 4096, temperature = 0.7 } = {}) {
         if (groqKey) {
-            const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-            response = await axios.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                { model: groqModel, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                { headers: { "Authorization": "Bearer " + groqKey, "Content-Type": "application/json" }, timeout: 120000 }
-            );
+            const groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+            const response = await axios.post(
+                'https://api.groq.com/openai/v1/chat/completions',
+                { model: groqModel, messages, max_tokens: maxTokens, temperature },
+                { headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' }, timeout: 120000 }
+            )
             if (groqKeyManager) groqKeyManager.recordSuccess(groqKey)
-        } else {
-            response = await axios.post(
-                OPENROUTER_ENDPOINT,
-                { model: getNextModel(), messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                { headers: { ...orHeaders, "Authorization": "Bearer " + OPENROUTER_API_KEY }, timeout: 120000 }
-            );
+            return response.data
         }
 
-        const fullContent = response.data?.choices?.[0]?.message?.content || ''
+        const response = await axios.post(
+            OPENROUTER_ENDPOINT,
+            { model: getNextModel(), messages, max_tokens: maxTokens, temperature },
+            { headers: { ...orHeaders, 'Authorization': 'Bearer ' + OPENROUTER_API_KEY }, timeout: 120000 }
+        )
+        return response.data
+    }
+
+    try {
+        const responseData = await runModel(orMessages, { maxTokens: 4096, temperature: 0.7 })
+        const fullContent = responseData?.choices?.[0]?.message?.content || ''
         if (!fullContent) throw new Error('Empty content from OpenRouter')
 
         // === PARSE SEMUA METADATA FIELDS SEKALIGUS ===
@@ -450,7 +569,19 @@ ATURAN ARTIKEL:
         }
 
         // Safety net: strip bracket yang ikut tertulis oleh AI (e.g. [Judul artikel...])
-        title = title.replace(/^\[(.+)\]$/, '$1').trim()
+        title = stripHeadlineLabel(title.replace(/^\[(.+)\]$/, '$1'))
+
+        title = await refineIndonesianHeadline({
+            title,
+            sourceTitle,
+            sourceContent,
+            excerpt: aiExcerpt,
+            content,
+            categories: aiCategories,
+            runModel,
+        })
+
+        title = stripHeadlineLabel(title)
 
         if (!title || title.length < 15) title = sourceTitle.split(' - ')[0].trim().slice(0, 90)
         if (title.length > 120) title = title.slice(0, 117).trim() + '...'

@@ -169,6 +169,15 @@ function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page")
   return "text-base"
 }
 
+function getDisplayTitle(title: string): string {
+  return String(title || '')
+    .replace(/^\s*\[(?:judul|title|headline|heading)\]\s*/i, '')
+    .replace(/^\s*(?:judul|title|headline|heading)\s*[:\-]\s*/i, '')
+    .replace(/^\s*"(.*)"\s*$/, '$1')
+    .replace(/^\s*'(.*)'\s*$/, '$1')
+    .trim()
+}
+
 function normalizeContentLineForCompare(text: string): string {
   return text
     .toLowerCase()
@@ -585,14 +594,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     }
   }
 
-  const resolvedCanonicalPath = buildArticlePath(article.id, article.title)
+  const displayTitle = getDisplayTitle(article.title)
+  const resolvedCanonicalPath = buildArticlePath(article.id, displayTitle)
   const description = buildArticleDescription(article)
   const tags = getArticleTags(article.categories)
   const primaryCategory = tags[0]
   const publishedTime = article.published_at || article.created_at
 
   return {
-    title: article.title,
+    title: displayTitle,
     description,
     authors: article.source_name ? [{ name: article.source_name }] : undefined,
     category: primaryCategory,
@@ -605,7 +615,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       follow: true,
     },
     openGraph: {
-      title: article.title,
+      title: displayTitle,
       description,
       url: resolvedCanonicalPath,
       type: "article",
@@ -619,14 +629,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         ? [
             {
               url: article.featured_image,
-              alt: article.title,
+              alt: displayTitle,
             },
           ]
         : undefined,
     },
     twitter: {
       card: article.featured_image ? "summary_large_image" : "summary",
-      title: article.title,
+      title: displayTitle,
       description,
       images: article.featured_image ? [article.featured_image] : undefined,
     },
@@ -643,10 +653,11 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     notFound()
   }
 
-  const expectedRouteParam = buildArticleRouteParam(article.id, article.title)
+  const displayTitle = getDisplayTitle(article.title)
+  const expectedRouteParam = buildArticleRouteParam(article.id, displayTitle)
   const requestedRouteParam = normalizeArticleSlug(slug)
   if (requestedRouteParam !== expectedRouteParam) {
-    permanentRedirect(buildArticlePath(article.id, article.title))
+    permanentRedirect(buildArticlePath(article.id, displayTitle))
   }
 
   const recommendedArticles = await getRecommendedArticles(article, 8)
@@ -665,13 +676,13 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
   })
   const publishedIso = published.toISOString()
   const modifiedIso = new Date(article.created_at).toISOString()
-  const canonicalUrl = `${siteUrl}${buildArticlePath(article.id, article.title)}`
+  const canonicalUrl = `${siteUrl}${buildArticlePath(article.id, displayTitle)}`
   const description = buildArticleDescription(article)
 
   const newsArticleSchema = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
-    headline: article.title,
+    headline: displayTitle,
     description,
     datePublished: publishedIso,
     dateModified: modifiedIso,
@@ -702,7 +713,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       image: {
         "@type": "ImageObject",
         url: article.featured_image,
-        caption: article.title,
+        caption: displayTitle,
       },
     }),
     ...(article.categories && {
@@ -727,7 +738,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       ...(firstCat && categoryUrl
         ? [{ "@type": "ListItem", position: 2, name: firstCat, item: categoryUrl }]
         : []),
-      { "@type": "ListItem", position: firstCat ? 3 : 2, name: article.title, item: canonicalUrl },
+      { "@type": "ListItem", position: firstCat ? 3 : 2, name: displayTitle, item: canonicalUrl },
     ],
   }
 
@@ -776,7 +787,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
               </>
             )}
             <li className="text-gray-700">›</li>
-            <li className="text-gray-400 line-clamp-1">{article.title}</li>
+            <li className="text-gray-400 line-clamp-1">{displayTitle}</li>
           </ol>
         </nav>
         <article>
@@ -785,7 +796,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
               <div className="relative w-full overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950">
                 <img
                   src={article.featured_image}
-                  alt={article.title}
+                  alt={displayTitle}
                   className="w-full h-auto object-contain"
                   fetchPriority="high"
                   loading="eager"
@@ -812,8 +823,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           )}
 
           <div className="mb-8">
-            <h1 className={`${getAdaptiveTitleClass(article.title)} font-black text-white mb-4 leading-tight break-words`}>
-              {article.title}
+            <h1 className={`${getAdaptiveTitleClass(displayTitle)} font-black text-white mb-4 leading-tight break-words`}>
+              {displayTitle}
             </h1>
 
             <div className="flex items-center flex-wrap gap-4 text-sm text-gray-400 mb-6">
@@ -849,11 +860,11 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                     href={buildArticlePath(relItem.id, relItem.title)}
                     className="text-blue-300 hover:text-blue-200 hover:underline transition-colors font-medium break-words"
                   >
-                    {relItem.title}
+                    {getDisplayTitle(relItem.title)}
                   </Link>
                 </div>
               )),
-              article.title
+              displayTitle
             )}
           </div>
 
@@ -872,7 +883,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                         href={buildArticlePath(relatedArticle.id, relatedArticle.title)}
                         className="block text-sm text-cyan-400 hover:text-cyan-300 transition-colors hover:underline break-words"
                       >
-                        {relatedArticle.title}
+                        {getDisplayTitle(relatedArticle.title)}
                       </Link>
                     ))}
                   </div>
@@ -937,7 +948,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                       {recArticle.featured_image ? (
                         <img
                           src={recArticle.featured_image}
-                          alt={recArticle.title}
+                          alt={getDisplayTitle(recArticle.title)}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
@@ -961,9 +972,9 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                       </div>
 
                       <h3
-                        className={`${getAdaptiveTitleClass(recArticle.title, "card")} font-bold text-white mb-2 leading-snug group-hover:text-cyan-300 transition-colors flex-grow break-words`}
+                        className={`${getAdaptiveTitleClass(getDisplayTitle(recArticle.title), "card")} font-bold text-white mb-2 leading-snug group-hover:text-cyan-300 transition-colors flex-grow break-words`}
                       >
-                        {recArticle.title}
+                        {getDisplayTitle(recArticle.title)}
                       </h3>
 
                       <p className="text-gray-400 text-xs line-clamp-2">
