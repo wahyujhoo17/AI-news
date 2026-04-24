@@ -411,7 +411,7 @@ EXCERPT: 1-2 kalimat teaser dalam BAHASA INDONESIA, 120-155 karakter
 CATEGORY: 1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Sepakbola | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita
 
 ARTIKEL:
-Isi artikel minimal 500 kata dalam BAHASA INDONESIA menggunakan Markdown
+Isi artikel 350-400 kata dalam BAHASA INDONESIA menggunakan Markdown
 
 ATURAN WAJIB:
 - SELURUH judul, excerpt, dan isi artikel HARUS dalam bahasa Indonesia — DILARANG menulis dalam bahasa Inggris
@@ -501,7 +501,7 @@ ATURAN ARTIKEL:
             for (const model of modelsToTry) {
                 try {
                     const tunedMaxTokens = model === 'llama-3.1-8b-instant'
-                        ? Math.min(maxTokens, 520)
+                        ? Math.min(maxTokens, 650)
                         : maxTokens
                     return await callGroqModel(messages, { model, maxTokens: tunedMaxTokens, temperature })
                 } catch (err) {
@@ -529,7 +529,7 @@ ATURAN ARTIKEL:
     }
 
     try {
-        const responseData = await runModel(orMessages, { maxTokens: 900, temperature: 0.7 })
+        const responseData = await runModel(orMessages, { maxTokens: 1300, temperature: 0.7 })
         const fullContent = responseData?.choices?.[0]?.message?.content || ''
         if (!fullContent) throw new Error('Empty content from Groq')
 
