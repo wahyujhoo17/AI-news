@@ -63,6 +63,22 @@ const Parser = require('rss-parser')
 const cheerio = require('cheerio')
 const { pool } = require('./lib/db-worker')
 
+const HTML_FETCH_MAX_BYTES = 700 * 1024
+const FULL_CONTENT_TARGET_CHARS = 2600
+
+function collectParagraphText($root, $, maxChars = FULL_CONTENT_TARGET_CHARS) {
+    if (!$root || !$root.length) return ''
+    let text = ''
+    $root.find('p').each((_, paragraph) => {
+        if (text.length >= maxChars) return false
+        const chunk = $(paragraph).text().replace(/\s+/g, ' ').trim()
+        if (!chunk) return
+        text += (text ? ' ' : '') + chunk
+        if (text.length >= maxChars) return false
+    })
+    return text.slice(0, maxChars).trim()
+}
+
 const GROQ_API_KEY_LIST = process.env.GROQ_API_KEY_ID || process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
 const GROQ_MODEL_FALLBACKS = [
@@ -237,10 +253,16 @@ async function fetchFullArticleContent(url) {
 
     try {
         const response = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
+            headers: {
+                'User-Agent': 'Mozilla/5.0',
+                'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+            },
             timeout: 15000,
+            maxContentLength: HTML_FETCH_MAX_BYTES,
+            maxBodyLength: HTML_FETCH_MAX_BYTES,
         })
-        const $ = cheerio.load(response.data)
+        const html = String(response.data || '').slice(0, HTML_FETCH_MAX_BYTES)
+        const $ = cheerio.load(html)
 
         const selectors = [
             'article',
@@ -258,20 +280,18 @@ async function fetchFullArticleContent(url) {
             const element = $(selector).first()
             if (!element.length) continue
 
-            const paragraphs = element.find('p').map((_, paragraph) => $(paragraph).text().trim()).get()
-            content = paragraphs.join(' ').replace(/\s+/g, ' ').trim()
+            content = collectParagraphText(element, $, FULL_CONTENT_TARGET_CHARS)
             if (content.length > 300) break
         }
 
         if (content.length < 300) {
-            const paragraphs = $('body p').map((_, paragraph) => $(paragraph).text().trim()).get()
-            const fallbackContent = paragraphs.join(' ').replace(/\s+/g, ' ').trim()
+            const fallbackContent = collectParagraphText($('body'), $, FULL_CONTENT_TARGET_CHARS)
             if (fallbackContent.length > content.length) {
                 content = fallbackContent
             }
         }
 
-        return content.slice(0, 10000)
+        return content.slice(0, FULL_CONTENT_TARGET_CHARS)
     } catch (error) {
         console.log(`[ID-WORKER] Full article fetch failed: ${error.message}`)
         return ''
@@ -820,11 +840,17 @@ async function fetchSourceImage(sourceUrl) {
     if (!sourceUrl) return null
     try {
         const response = await axios.get(sourceUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
+            headers: {
+                'User-Agent': 'Mozilla/5.0',
+                'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+            },
             timeout: 10000,
             maxRedirects: 5,
+            maxContentLength: HTML_FETCH_MAX_BYTES,
+            maxBodyLength: HTML_FETCH_MAX_BYTES,
         })
-        const $ = cheerio.load(response.data)
+        const html = String(response.data || '').slice(0, HTML_FETCH_MAX_BYTES)
+        const $ = cheerio.load(html)
         const candidates = [
             $('meta[property="og:image:secure_url"]').attr('content'),
             $('meta[property="og:image"]').attr('content'),

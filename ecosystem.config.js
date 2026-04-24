@@ -10,6 +10,7 @@ module.exports = {
       name: "ai-news-worker-id",
       script: "./worker-id.js",
       cwd: "./",
+      max_memory_restart: "220M",
       // Indonesian language news worker — writes articles with language='id'
     },
   ],
