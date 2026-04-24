@@ -63,28 +63,13 @@ const Parser = require('rss-parser')
 const cheerio = require('cheerio')
 const { pool } = require('./lib/db-worker')
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY_GLOBAL
-const GROQ_API_KEY_LIST = process.env.GROQ_API_KEY_ID
-// Fallback models jika primary rate-limited
-const OPENROUTER_MODEL_PRIMARY = process.env.OPENROUTER_MODEL_ID || "openai/gpt-oss-20b:free"
-console.log("[ID-WORKER] API Key:", OPENROUTER_API_KEY ? OPENROUTER_API_KEY.substring(0, 10) + "..." : "missing")
-const OPENROUTER_FALLBACK_MODELS = [
-    'z-ai/glm-4.5-air:free',
-    'nvidia/nemotron-3-super-120b-a12b:free',
-    'openai/gpt-oss-20b:free',
-    'minimax/minimax-m2.5:free'
+const GROQ_API_KEY_LIST = process.env.GROQ_API_KEY_ID || process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+const GROQ_MODEL_FALLBACKS = [
+    GROQ_MODEL,
+    'llama-3.1-8b-instant',
+    'llama-3.3-70b-versatile',
 ]
-let _currentModelIndex = 0
-function getNextModel() {
-    const model = OPENROUTER_FALLBACK_MODELS[_currentModelIndex % OPENROUTER_FALLBACK_MODELS.length]
-    return model
-}
-function rotateModel() {
-    _currentModelIndex = (_currentModelIndex + 1) % OPENROUTER_FALLBACK_MODELS.length
-    console.warn(`[ID-WORKER] Rotating to fallback model: ${OPENROUTER_FALLBACK_MODELS[_currentModelIndex]}`)
-}
-const OPENROUTER_MODEL = OPENROUTER_MODEL_PRIMARY
-const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 
 class GroqKeyManager {
     constructor(keysEnv) {
@@ -145,9 +130,8 @@ if (GROQ_API_KEY_LIST) {
     }
 }
 
-console.log('[ID-WORKER] Starting Indonesian news worker (OpenRouter AI)')
-console.log('[ID-WORKER] Model primary:', OPENROUTER_MODEL_PRIMARY, '| Fallbacks:', OPENROUTER_FALLBACK_MODELS.length)
-if (!OPENROUTER_API_KEY) console.error('[ID-WORKER] WARNING: OPENROUTER_API_KEY not set!')
+console.log('[ID-WORKER] Starting Indonesian news worker (Groq AI)')
+console.log('[ID-WORKER] Groq model primary:', GROQ_MODEL, '| fallbacks:', GROQ_MODEL_FALLBACKS.length)
 
 // ============================================
 // RSS SOURCES — Indonesia + International
@@ -157,15 +141,15 @@ const ID_FEEDS = [
     { id: 'id-001', name: 'Detik News', url: 'https://news.detik.com/rss', noSourceImage: false },
     { id: 'id-002', name: 'Antara News', url: 'https://www.antaranews.com/rss', noSourceImage: false },
     { id: 'id-003', name: 'Tempo', url: 'https://rss.tempo.co/nasional', noSourceImage: false },
-    { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss/berita/nasional', noSourceImage: false },
+    { id: 'id-004', name: 'Kompas', url: 'https://rss.kompas.com/rss', noSourceImage: false },
     { id: 'id-005', name: 'CNN Indonesia', url: 'https://www.cnnindonesia.com/rss', noSourceImage: false },
     { id: 'id-006', name: 'Republika', url: 'https://www.republika.co.id/rss', noSourceImage: true },
-    { id: 'id-007', name: 'Liputan6', url: 'https://www.liputan6.com/rss/news', noSourceImage: false },
-    { id: 'id-008', name: 'Tribun News', url: 'https://www.tribunnews.com/rss/nasional', noSourceImage: true },
+    { id: 'id-007', name: 'Liputan6', url: 'https://www.liputan6.com/feed', noSourceImage: false },
+    { id: 'id-008', name: 'Tribun News', url: 'https://www.tribunnews.com/rss', noSourceImage: true },
     { id: 'id-009', name: 'Google News ID', url: 'https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id', noSourceImage: false },
-    { id: 'id-010', name: 'Jakarta Post', url: 'https://www.thejakartapost.com/feed', noSourceImage: false },
-    { id: 'id-011', name: 'Merdeka', url: 'https://www.merdeka.com/feed/', noSourceImage: false },
-    { id: 'id-012', name: 'Suara', url: 'https://www.suara.com/rss', noSourceImage: false },
+    { id: 'id-010', name: 'Jakarta Post', url: 'https://www.thejakartapost.com/rss', noSourceImage: false },
+    { id: 'id-011', name: 'Merdeka', url: 'https://www.merdeka.com/rss', noSourceImage: false },
+    { id: 'id-012', name: 'Suara', url: 'https://www.suara.com/feed', noSourceImage: false },
 
     // ===== CRYPTO & BLOCKCHAIN =====
     { id: 'cr-001', name: 'CoinDesk', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/' },
@@ -182,13 +166,13 @@ const ID_FEEDS = [
     { id: 'tc-006', name: 'VentureBeat', url: 'https://venturebeat.com/feed/' },
 
     // ===== BISNIS & EKONOMI GLOBAL =====
-    { id: 'bz-001', name: 'Reuters', url: 'https://feeds.reuters.com/reuters/topNews' },
+    { id: 'bz-001', name: 'Reuters', url: 'https://www.bbc.com/news/rss.xml' },
     { id: 'bz-002', name: 'CNBC', url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html' },
 
     // ===== OLAHRAGA — SEPAK BOLA (internasional, tanpa watermark) =====
     { id: 'sp-001', name: 'Liga Olahraga', url: 'https://www.ligaolahraga.com/feed', noSourceImage: true },
     { id: 'sp-002', name: 'Detik Sport', url: 'https://sport.detik.com/rss.xml', noSourceImage: false },
-    { id: 'sp-003', name: 'Tribun Sport', url: 'https://www.tribunnews.com/rss/sport', noSourceImage: true },
+    { id: 'sp-003', name: 'Tribun Sport', url: 'https://www.tribunnews.com/rss', noSourceImage: true },
     { id: 'sp-004', name: 'ESPN FC', url: 'https://www.espn.com/espn/rss/soccer/news' },
     { id: 'sp-005', name: 'BBC Sport Football', url: 'https://feeds.bbci.co.uk/sport/football/rss.xml' },
     { id: 'sp-006', name: 'Sky Sports Football', url: 'https://www.skysports.com/rss/12040' },
@@ -203,12 +187,12 @@ const ID_FEEDS = [
     { id: 'ms-003', name: 'Sky Sports', url: 'https://www.skysports.com/rss/12433' },
     { id: 'ms-004', name: 'BWF Badminton', url: 'https://bwfbadminton.com/feed/' },
     { id: 'ms-005', name: 'Republika Sport', url: 'https://www.republika.co.id/rss/sport' },
-    { id: 'ms-006', name: 'NBA', url: 'https://www.nba.com/news/rss.xml' },
+    { id: 'ms-006', name: 'NBA', url: 'https://www.nba.com/news/rss' },
     { id: 'ms-007', name: 'ESPN Motorsport', url: 'https://www.espn.com/espn/rss/f1/news' },
 ]
 
 const CRAWL_CONFIG = {
-    TOTAL_BUDGET: 15,       // total artikel target per siklus
+    TOTAL_BUDGET: 6,        // total artikel target per siklus
     MAX_PER_SOURCE: 2,      // maks artikel per sumber
     SPORTS_RATIO: 0.20,     // ~20% konten olahraga
     LOCAL_RATIO: 0.20,      // ~20% berita lokal Indonesia
@@ -245,6 +229,52 @@ async function fetchRSS(url) {
     } catch (error) {
         console.error(`[ID-WORKER] RSS fetch error (${url.slice(0, 60)}): ${error.message}`)
         return []
+    }
+}
+
+async function fetchFullArticleContent(url) {
+    if (!url) return ''
+
+    try {
+        const response = await axios.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 15000,
+        })
+        const $ = cheerio.load(response.data)
+
+        const selectors = [
+            'article',
+            '.post-content',
+            '.entry-content',
+            '.story-content',
+            '.article-content',
+            '.content',
+            'main',
+            '[role="main"]',
+        ]
+
+        let content = ''
+        for (const selector of selectors) {
+            const element = $(selector).first()
+            if (!element.length) continue
+
+            const paragraphs = element.find('p').map((_, paragraph) => $(paragraph).text().trim()).get()
+            content = paragraphs.join(' ').replace(/\s+/g, ' ').trim()
+            if (content.length > 300) break
+        }
+
+        if (content.length < 300) {
+            const paragraphs = $('body p').map((_, paragraph) => $(paragraph).text().trim()).get()
+            const fallbackContent = paragraphs.join(' ').replace(/\s+/g, ' ').trim()
+            if (fallbackContent.length > content.length) {
+                content = fallbackContent
+            }
+        }
+
+        return content.slice(0, 10000)
+    } catch (error) {
+        console.log(`[ID-WORKER] Full article fetch failed: ${error.message}`)
+        return ''
     }
 }
 
@@ -367,7 +397,7 @@ Sumber berita mungkin dalam bahasa Inggris — WAJIB terjemahkan dan tulis SELUR
 
 ---
 JUDUL SUMBER: ${sourceTitle}
-KONTEN SUMBER: ${sourceContent.slice(0, 1800)}
+    KONTEN SUMBER: ${sourceContent.slice(0, 500)}
 ---
 
 Tulis output PERSIS dalam format berikut:
@@ -444,38 +474,64 @@ ATURAN ARTIKEL:
         { role: 'system', content: 'Kamu adalah jurnalis profesional Indonesia. WAJIB menulis SELURUH output dalam bahasa Indonesia, kecuali IMAGE_HINT. JANGAN gunakan tanda kurung siku [] dalam output. Ikuti format yang diberikan dengan tepat. Jangan tambahkan preamble, penjelasan, atau komentar apapun.' },
         { role: 'user', content: prompt }
     ]
-    const orHeaders = {
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://qbitznews.com',
-        'X-Title': 'QbitzNews Indonesian Worker',
-    }
+    let groqKey = groqKeyManager ? groqKeyManager.getNextKey() : (process.env.GROQ_API_KEY_ID || process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY)
 
-    let groqKey = groqKeyManager ? groqKeyManager.getNextKey() : process.env.GROQ_API_KEY_ID;
-
-    async function runModel(messages, { maxTokens = 4096, temperature = 0.7 } = {}) {
-        if (groqKey) {
-            const groqModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
-            const response = await axios.post(
-                'https://api.groq.com/openai/v1/chat/completions',
-                { model: groqModel, messages, max_tokens: maxTokens, temperature },
-                { headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' }, timeout: 120000 }
-            )
-            if (groqKeyManager) groqKeyManager.recordSuccess(groqKey)
-            return response.data
-        }
+    async function callGroqModel(messages, { model = GROQ_MODEL, maxTokens = 1200, temperature = 0.7 } = {}) {
+        if (!groqKey) return null
 
         const response = await axios.post(
-            OPENROUTER_ENDPOINT,
-            { model: getNextModel(), messages, max_tokens: maxTokens, temperature },
-            { headers: { ...orHeaders, 'Authorization': 'Bearer ' + OPENROUTER_API_KEY }, timeout: 120000 }
+            'https://api.groq.com/openai/v1/chat/completions',
+            { model, messages, max_tokens: maxTokens, temperature },
+            { headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' }, timeout: 120000 }
         )
+        if (groqKeyManager) groqKeyManager.recordSuccess(groqKey)
         return response.data
     }
 
+    async function runModel(messages, { maxTokens = 1200, temperature = 0.7 } = {}) {
+        const groqKeysToTry = groqKeyManager?.keys?.length
+            ? groqKeyManager.keys
+            : (groqKey ? [groqKey] : [])
+        let lastErr = null
+
+        for (const candidateKey of groqKeysToTry) {
+            groqKey = candidateKey
+            const modelsToTry = [...new Set(GROQ_MODEL_FALLBACKS)]
+
+            for (const model of modelsToTry) {
+                try {
+                    const tunedMaxTokens = model === 'llama-3.1-8b-instant'
+                        ? Math.min(maxTokens, 520)
+                        : maxTokens
+                    return await callGroqModel(messages, { model, maxTokens: tunedMaxTokens, temperature })
+                } catch (err) {
+                    lastErr = err
+                    const status = err.response?.status
+                    const shouldContinueModel = status === 429 || status === 500 || status === 503 || !err.response
+
+                    if (shouldContinueModel) {
+                        console.warn(`[ID-WORKER] Groq model ${model} on key ...${String(candidateKey).slice(-6)} failed (${status || 'network'}), trying next model...`)
+                        continue
+                    }
+
+                    throw err
+                }
+            }
+
+            const keyStatus = lastErr?.response?.status
+            if (keyStatus === 429 && groqKeyManager) {
+                groqKeyManager.recordFailure(candidateKey, 'rate_limit_exceeded')
+            }
+            console.warn(`[ID-WORKER] Groq key ...${String(candidateKey).slice(-6)} exhausted, trying next key...`)
+        }
+
+        throw lastErr || new Error('All Groq keys failed')
+    }
+
     try {
-        const responseData = await runModel(orMessages, { maxTokens: 4096, temperature: 0.7 })
+        const responseData = await runModel(orMessages, { maxTokens: 900, temperature: 0.7 })
         const fullContent = responseData?.choices?.[0]?.message?.content || ''
-        if (!fullContent) throw new Error('Empty content from OpenRouter')
+        if (!fullContent) throw new Error('Empty content from Groq')
 
         // === PARSE SEMUA METADATA FIELDS SEKALIGUS ===
         const VALID_CATEGORIES = new Set(['Kripto & Blockchain', 'Teknologi', 'Politik', 'Ekonomi', 'Olahraga', 'Sepakbola', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Hukum & Kriminal', 'Lingkungan', 'Berita'])
@@ -546,6 +602,7 @@ ATURAN ARTIKEL:
         // Extract title: prioritas dari field JUDUL:, fallback ke baris pertama
         let title = ''
         let contentStartIndex = 0
+        let content = ''
 
         if (aiTitleFromField && aiTitleFromField.length >= 15) {
             title = aiTitleFromField
@@ -589,7 +646,7 @@ ATURAN ARTIKEL:
         // Clean body — ambil dari setelah judul, tanpa baris metadata
         const bodyLines = rawLines.slice(contentStartIndex)
         while (bodyLines.length > 0 && !bodyLines[0].trim()) bodyLines.shift()
-        let content = bodyLines.join('\n').trim()
+        content = bodyLines.join('\n').trim()
 
         // Bersihkan sisa metadata yang mungkin masih masuk ke body (safety net)
         content = content
@@ -659,19 +716,19 @@ ATURAN ARTIKEL:
             }
         }
 
-        const usage = response.data?.usage || {}
-        const finishReason = response.data?.choices?.[0]?.finish_reason || ''
+        const usage = responseData?.usage || {}
+        const finishReason = responseData?.choices?.[0]?.finish_reason || ''
 
         // ── Validasi kelengkapan artikel ────────────────────────────────────
-        // 1. API melaporkan output terpotong karena token habis
-        if (finishReason === 'length') {
-            throw new Error(`Artikel terpotong (finish_reason=length) — tidak disimpan: "${title.slice(0, 60)}"`)
+        // 1. Konten terlalu pendek — AI gagal/terpotong
+        const wordCount = content.split(/\s+/).filter(Boolean).length
+        if (wordCount < 120) {
+            throw new Error(`Konten terlalu pendek (${wordCount} kata, min 120) — tidak disimpan: "${title.slice(0, 60)}"`)
         }
 
-        // 2. Konten terlalu pendek — AI gagal/terpotong
-        const wordCount = content.split(/\s+/).filter(Boolean).length
-        if (wordCount < 200) {
-            throw new Error(`Konten terlalu pendek (${wordCount} kata, min 200) — tidak disimpan: "${title.slice(0, 60)}"`)
+        // 2. Jika terpotong karena limit token, izinkan selama masih cukup panjang
+        if (finishReason === 'length' && wordCount < 160) {
+            throw new Error(`Artikel terpotong (finish_reason=length, ${wordCount} kata) — tidak disimpan: "${title.slice(0, 60)}"`)
         }
 
         // 3. Kalimat terakhir terpotong — hanya throw jika benar-benar terpotong di tengah kata
@@ -699,50 +756,10 @@ ATURAN ARTIKEL:
             categories: aiCategories,
             tokens: { prompt: usage.prompt_tokens || 0, completion: usage.completion_tokens || 0, total: usage.total_tokens || 0 },
             cost: (usage.total_tokens || 0) * 0.00000015,
-            model: OPENROUTER_MODEL,
+            model: GROQ_MODEL,
         }
     } catch (err) {
-        if (err.response?.status === 429) {
-            console.warn(`[ID-WORKER] GROQ/OpenRouter rate limit — rotating model/key and retrying...`)
-            if (groqKeyManager && groqKey) {
-                groqKeyManager.recordFailure(groqKey, 'rate_limit_exceeded')
-            }
-            rotateModel()
-            try {
-                const retryModel = getNextModel()
-                let retryRes;
-                const retryGroqKey = groqKeyManager ? groqKeyManager.getNextKey() : process.env.GROQ_API_KEY_ID;
-                if (retryGroqKey) {
-                    const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-                    retryRes = await axios.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        { model: groqModel, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                        { headers: { "Authorization": "Bearer " + retryGroqKey, "Content-Type": "application/json" }, timeout: 120000 }
-                    );
-                    if (groqKeyManager) groqKeyManager.recordSuccess(retryGroqKey)
-                } else {
-                    retryRes = await axios.post(
-                        OPENROUTER_ENDPOINT,
-                        { model: retryModel, messages: orMessages, max_tokens: 4096, temperature: 0.7 },
-                        { headers: { ...orHeaders, "Authorization": "Bearer " + OPENROUTER_API_KEY }, timeout: 120000 }
-                    );
-                }
-                const retryChoice = retryRes.data.choices?.[0]
-                if (retryChoice?.message?.content) {
-                    console.log(`[ID-WORKER] Retry OK with model: ${retryModel}`)
-                    const usage = retryRes.data.usage || {}
-                    return {
-                        rawText: retryChoice.message.content,
-                        tokens: { prompt: usage.prompt_tokens || 0, completion: usage.completion_tokens || 0, total: usage.total_tokens || 0 },
-                        cost: (usage.total_tokens || 0) * 0.00000015,
-                        model: retryModel,
-                    }
-                }
-            } catch (retryErr) {
-                console.error(`[ID-WORKER] Retry also failed: ${retryErr.message}`)
-            }
-        }
-        console.error(`[ID-WORKER] OpenRouter error (${err.response?.status || 'network'}): ${err.response?.data?.error?.message || err.message}`)
+        console.error(`[ID-WORKER] Structured generation failed: ${err.message}`)
         throw err
     }
 }
@@ -1059,7 +1076,7 @@ const PROMO_TITLE_PATTERNS = [
  * Mengembalikan { isPromo: boolean, reason: string }
  */
 function detectPromotionalContent(title, content = '') {
-    const titleLower = title.toLowerCase()
+    const titleLower = (title || '').toLowerCase()
     const textLower = (title + ' ' + content).toLowerCase()
 
     // Brand ada di judul + pola promosi di judul → langsung tolak
@@ -1178,7 +1195,16 @@ async function crawlIndonesian() {
             if (dupTitle.rows.length > 0) { console.log(`[ID-WORKER] Skip dup title (id): ${item.title.slice(0, 50)}`); continue }
 
             // Filter promosi — cek source title SEBELUM panggil AI (hemat token)
-            const prePromo = detectPromotionalContent(item.title, item.content)
+            let sourceContent = item.content || item.summary || ''
+            if (item.link && sourceContent.trim().length < 250) {
+                const fullContent = await fetchFullArticleContent(item.link)
+                if (fullContent && fullContent.trim().length > sourceContent.trim().length) {
+                    sourceContent = fullContent
+                    console.log(`[ID-WORKER] Using full article content (${sourceContent.length} chars)`)
+                }
+            }
+
+            const prePromo = detectPromotionalContent(item.title, sourceContent)
             if (prePromo.isPromo) {
                 console.log(`[ID-WORKER] Skip promosi (pre-AI): ${prePromo.reason}`)
                 continue
@@ -1186,7 +1212,7 @@ async function crawlIndonesian() {
 
             try {
                 console.log(`[ID-WORKER] → Generating: "${item.title.slice(0, 60)}"`)
-                const generated = await generateArticleWithOpenRouter(item.title, item.content, feed.name)
+                const generated = await generateArticleWithOpenRouter(item.title, sourceContent, feed.name)
 
                 // Dedup: check generated title (hanya dalam bahasa ID)
                 const dupGen = await pool.query("SELECT id FROM articles WHERE LOWER(TRIM(title))=LOWER(TRIM($1)) AND language='id' LIMIT 1", [generated.title])
@@ -1271,7 +1297,6 @@ async function crawlIndonesian() {
         if (sportsGenerated >= sportsBudget) break
         const n = await processFeed(feed, sportsBudget - sportsGenerated)
         sportsGenerated += n
-        totalGenerated += n
     }
     console.log(`[ID-WORKER] Olahraga: ${sportsGenerated}/${sportsBudget}`)
 
@@ -1280,7 +1305,6 @@ async function crawlIndonesian() {
         if (localGenerated >= localBudget || totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
         const n = await processFeed(feed, Math.min(localBudget - localGenerated, CRAWL_CONFIG.TOTAL_BUDGET - totalGenerated))
         localGenerated += n
-        totalGenerated += n
     }
     console.log(`[ID-WORKER] Lokal: ${localGenerated}/${localBudget}`)
 
@@ -1289,7 +1313,6 @@ async function crawlIndonesian() {
         if (techGenerated >= techBudget || totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
         const n = await processFeed(feed, Math.min(techBudget - techGenerated, CRAWL_CONFIG.TOTAL_BUDGET - totalGenerated))
         techGenerated += n
-        totalGenerated += n
     }
     console.log(`[ID-WORKER] Tech: ${techGenerated}/${techBudget}`)
 
@@ -1298,7 +1321,6 @@ async function crawlIndonesian() {
         if (cryptoGenerated >= cryptoBudget || totalGenerated >= CRAWL_CONFIG.TOTAL_BUDGET) break
         const n = await processFeed(feed, Math.min(cryptoBudget - cryptoGenerated, CRAWL_CONFIG.TOTAL_BUDGET - totalGenerated))
         cryptoGenerated += n
-        totalGenerated += n
     }
     console.log(`[ID-WORKER] Crypto: ${cryptoGenerated}/${cryptoBudget}`)
 
@@ -1315,11 +1337,11 @@ async function crawlIndonesian() {
 // ============================================
 // SCHEDULE: every 45 minutes
 // ============================================
-cron.schedule('*/45 * * * *', () => {
+cron.schedule('*/90 * * * *', () => {
     crawlIndonesian().catch(err => console.error('[ID-WORKER] Crawl error:', err.message))
 })
 
 // Run immediately on startup
 crawlIndonesian().catch(err => console.error('[ID-WORKER] Initial crawl error:', err.message))
 
-console.log('[ID-WORKER] Scheduled every 45 minutes. Running first crawl now...')
+console.log('[ID-WORKER] Scheduled every 90 minutes. Running first crawl now...')
