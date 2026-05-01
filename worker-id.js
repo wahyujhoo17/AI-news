@@ -511,16 +511,25 @@ ATURAN ARTIKEL:
     }
 
     async function runModel(messages, { maxTokens = 1200, temperature = 0.7 } = {}) {
-        const groqKeysToTry = groqKeyManager?.keys?.length
-            ? groqKeyManager.keys
-            : (groqKey ? [groqKey] : [])
         let lastErr = null
+        const modelsToTry = [...new Set(GROQ_MODEL_FALLBACKS)]
+        const availableKeys = groqKeyManager?.keys?.length ? groqKeyManager.keys : (groqKey ? [groqKey] : [])
 
-        for (const candidateKey of groqKeysToTry) {
-            groqKey = candidateKey
-            const modelsToTry = [...new Set(GROQ_MODEL_FALLBACKS)]
+        for (const model of modelsToTry) {
+            // Sort keys to try available ones first
+            const sortedKeys = [...availableKeys].sort((a, b) => {
+                const cdA = groqKeyManager ? groqKeyManager.cooldownTimes[a] || 0 : 0
+                const cdB = groqKeyManager ? groqKeyManager.cooldownTimes[b] || 0 : 0
+                return cdA - cdB
+            })
 
-            for (const model of modelsToTry) {
+            for (const candidateKey of sortedKeys) {
+                if (groqKeyManager && groqKeyManager.cooldownTimes[candidateKey] > Date.now()) {
+                    continue // Skip keys on cooldown
+                }
+                
+                groqKey = candidateKey
+                
                 try {
                     const tunedMaxTokens = model === 'llama-3.1-8b-instant'
                         ? Math.min(maxTokens, 650)
@@ -529,25 +538,25 @@ ATURAN ARTIKEL:
                 } catch (err) {
                     lastErr = err
                     const status = err.response?.status
-                    const shouldContinueModel = status === 429 || status === 500 || status === 503 || !err.response
+                    
+                    if (status === 429) {
+                        if (groqKeyManager) groqKeyManager.recordFailure(candidateKey, 'rate_limit_exceeded')
+                        console.warn(`[ID-WORKER] Groq key ...${String(candidateKey).slice(-6)} rate-limited on model ${model}, trying NEXT KEY...`)
+                        continue // Ganti KEY, jangan ganti model dulu
+                    }
 
-                    if (shouldContinueModel) {
-                        console.warn(`[ID-WORKER] Groq model ${model} on key ...${String(candidateKey).slice(-6)} failed (${status || 'network'}), trying next model...`)
+                    if (status === 500 || status === 503 || !err.response) {
+                        console.warn(`[ID-WORKER] Groq model ${model} on key ...${String(candidateKey).slice(-6)} failed (${status || 'network'}), trying NEXT KEY...`)
                         continue
                     }
 
                     throw err
                 }
             }
-
-            const keyStatus = lastErr?.response?.status
-            if (keyStatus === 429 && groqKeyManager) {
-                groqKeyManager.recordFailure(candidateKey, 'rate_limit_exceeded')
-            }
-            console.warn(`[ID-WORKER] Groq key ...${String(candidateKey).slice(-6)} exhausted, trying next key...`)
+            console.warn(`[ID-WORKER] All keys exhausted/cooldown for model ${model}, trying NEXT MODEL fallback...`)
         }
 
-        throw lastErr || new Error('All Groq keys failed')
+        throw lastErr || new Error('All Groq keys and models failed')
     }
 
     try {

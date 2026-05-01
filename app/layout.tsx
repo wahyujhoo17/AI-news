@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import Script from 'next/script'
 import './globals.css'
 
 const siteUrl = 'https://qbitznews.com'
@@ -85,12 +86,6 @@ export default async function RootLayout({
       <head>
         <meta name="google-adsense-account" content="ca-pub-5926049453295619" />
         <meta name="monetag" content="b6acb39d1815c899fc652ab123219fd8" />
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5926049453295619"
-          crossOrigin="anonymous"
-        />
-        <script src="https://quge5.com/88/tag.min.js" data-zone="225633" async data-cfasync="false" />
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;900&display=swap');
           
@@ -123,6 +118,18 @@ export default async function RootLayout({
       </head>
       <body className="bg-black text-white antialiased">
         {children} 
+        <Script
+          id="adsbygoogle-init"
+          strategy="lazyOnload"
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5926049453295619"
+          crossOrigin="anonymous"
+        />
+        <Script 
+          id="monetag-init"
+          strategy="lazyOnload"
+          src="https://quge5.com/88/tag.min.js" 
+          data-zone="225633" 
+        />
       </body>
     </html>
   )
