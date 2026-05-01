@@ -597,8 +597,8 @@ function HomeContent({
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <h1 className="sr-only">Qbitz – AI-Powered News: Latest World, Technology &amp; Sports Headlines</h1>
-        <div className="mb-6 min-h-[100px] md:min-h-[250px] flex items-center justify-center">
-          <GoogleAd slot="7318960512" format="horizontal" className="w-full" />
+        <div className="mb-6 w-full flex justify-center">
+          <GoogleAd slot="7318960512" format="horizontal" className="w-full max-w-[1200px]" />
         </div>
         {loading ? (
           <HomeSkeleton />
