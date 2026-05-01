@@ -484,11 +484,13 @@ ATURAN EXCERPT (wajib compelling):
 - Contoh BURUK: "Baca artikel ini untuk mengetahui lebih lanjut.", "Chelsea memecat pemain mereka."
 
 ATURAN ARTIKEL:
-- Gaya jurnalistik profesional, bahasa formal tapi mudah dipahami
-- Sertakan konteks, dampak bagi Indonesia, data/angka jika relevan
-- Gunakan ## untuk sub-judul jika topik membutuhkan struktur
-- JANGAN heading generik: Pendahuluan, Kesimpulan, Latar Belakang
-- Akhiri dengan paragraf penutup yang kuat`
+- Gaya jurnalistik profesional, bahasa formal tapi mudah dipahami.
+- TULIS SEPERTI MANUSIA: Gunakan variasi panjang kalimat (kalimat pendek untuk penegasan, kalimat panjang untuk penjelasan).
+- HINDARI frasa klise AI yang sering terdeteksi sebagai spam (contoh: "Di era digital ini", "Penting untuk diingat bahwa", "Kesimpulannya", "Tidak dapat dipungkiri").
+- Sertakan konteks lokal, opini analitis, atau dampak nyata dari kejadian tersebut agar tidak sekadar menjadi tulisan ulang (rewrite).
+- Gunakan ## untuk sub-judul jika topik membutuhkan struktur.
+- JANGAN heading generik: Pendahuluan, Kesimpulan, Latar Belakang.
+- Akhiri dengan paragraf penutup yang tajam tanpa merangkum ulang isi berita.`
 
     const orMessages = [
         { role: 'system', content: 'Kamu adalah jurnalis profesional Indonesia. WAJIB menulis SELURUH output dalam bahasa Indonesia, kecuali IMAGE_HINT. JANGAN gunakan tanda kurung siku [] dalam output. Ikuti format yang diberikan dengan tepat. Jangan tambahkan preamble, penjelasan, atau komentar apapun.' },
@@ -1304,7 +1306,7 @@ async function crawlIndonesian() {
                 const artUrl = artTitleSlug
                     ? `https://qbitznews.com/id/articles/${artId}-${artTitleSlug}`
                     : `https://qbitznews.com/id/articles/${artId}`
-                notifyGoogleIndexing(artUrl).catch(() => { })
+                // notifyGoogleIndexing(artUrl).catch(() => { }) // Dinonaktifkan: Google Indexing API untuk berita menyebabkan penalti SEO
                 notifyBingIndexing(artUrl).catch(() => { })
 
                 // Polite delay

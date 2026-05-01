@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import Link from "next/link"
 import Navbar from "./components/Navbar"
 import Footer from "./components/Footer"
@@ -100,9 +101,12 @@ function HeroSection({
           className="lg:col-span-2 group relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-black/40 hover:border-cyan-400/50 transition-all duration-300 min-h-[300px] lg:min-h-[420px] flex"
         >
           {featured.featured_image ? (
-            <img
-              src={featured.featured_image}
+            <Image
+              src={featured.featured_image || ""}
               alt={featured.title}
+              fill
+              priority
+              sizes="(max-width: 1024px) 100vw, 66vw"
               className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
           ) : (
@@ -143,9 +147,11 @@ function HeroSection({
               className="group flex-shrink-0 w-72 lg:w-auto flex gap-3 p-3 rounded-xl border border-cyan-500/20 bg-black/40 hover:border-cyan-400/50 hover:bg-black/60 transition-all duration-200 lg:flex-1"
             >
               {article.featured_image && (
-                <img
-                  src={article.featured_image}
+                <Image
+                  src={article.featured_image || ""}
                   alt={article.title}
+                  width={80}
+                  height={64}
                   className="w-20 h-16 lg:w-16 lg:h-14 object-cover rounded-lg flex-shrink-0"
                 />
               )}
@@ -184,9 +190,11 @@ function ArticleCard({ article, categories, prefix }: { article: Article; catego
     >
       <div className="relative h-44 bg-gradient-to-br from-slate-900 via-blue-900/40 to-slate-950 overflow-hidden flex-shrink-0">
         {article.featured_image ? (
-          <img
+          <Image
             src={article.featured_image}
             alt={article.title}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
@@ -612,7 +620,7 @@ function HomeContent({
                   className="group flex gap-4 rounded-xl border border-cyan-500/20 bg-black/40 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-300 p-4"
                 >
                   {article.featured_image && (
-                    <img src={article.featured_image} alt={article.title} className="w-20 h-20 object-cover rounded-lg flex-shrink-0" />
+                    <Image src={article.featured_image || ""} alt={article.title} width={80} height={80} className="w-20 h-20 object-cover rounded-lg flex-shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <h3 className="text-base font-bold text-white group-hover:text-cyan-300 transition-colors line-clamp-2 mb-1">{article.title}</h3>

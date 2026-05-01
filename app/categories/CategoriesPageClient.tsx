@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import Navbar from "@/app/components/Navbar"
 import Footer from "@/app/components/Footer"
 import { buildArticlePath } from "@/lib/article-slug"
@@ -219,9 +220,11 @@ export default function CategoriesPageClient() {
                               className="group relative overflow-hidden rounded-xl border border-cyan-500/20 bg-black/40 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/20 flex flex-col"
                             >
                               <div className="h-40 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950 overflow-hidden relative">
-                                <img
-                                  src={article.featured_image}
+                                <Image
+                                  src={article.featured_image || ""}
                                   alt={article.title}
+                                  fill
+                                  sizes="(max-width: 768px) 100vw, 50vw"
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>

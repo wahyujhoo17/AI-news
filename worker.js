@@ -706,12 +706,13 @@ async function fetchHTML(url, selector = 'article') {
   }
 }
 
-async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
 async function fetchFullArticleContent(url) {
   try {
     const response = await axios.get(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
       timeout: 15000,
+      maxContentLength: 700 * 1024,
+      maxBodyLength: 700 * 1024,
     });
     const $ = cheerio.load(response.data);
     
@@ -759,6 +760,8 @@ async function fetchFullArticleContent(url) {
     return "";
   }
 }
+
+async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
   // Groq-only (no fallback)
   const groqKey = groqManager.getNextKey()
   const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
@@ -792,10 +795,13 @@ EXCERPT RULES:
 - Do NOT start with: "This article", "In this piece", "Learn about", "Read"
 
 ARTICLE RULES:
-- Journalistic flow, minimum 500 words
-- Headings OPTIONAL (max 2), NEVER: Introduction, Background, Conclusion, Summary
-- Tables/diagrams only for structured data
-- Bold (**text**) sparingly, only when it adds clarity
+- Journalistic flow, minimum 500 words.
+- WRITE LIKE A HUMAN: Vary sentence structures and lengths. Avoid robotic transitions.
+- AVOID AI CLICHÉS: Never use phrases like "In today's digital age," "It is important to note," "In conclusion," or "A testament to."
+- Add unique analytical value, industry context, or implications instead of just rewriting the source.
+- Headings OPTIONAL (max 2), NEVER: Introduction, Background, Conclusion, Summary.
+- Tables/diagrams only for structured data.
+- Bold (**text**) sparingly, only when it adds clarity.
 - Lede: The first paragraph must answer Who, What, Where, When, and Why in under 35 words.
 - Global Context: Provide 1-2 paragraphs explaining how this news affects the global market or international community.
 
@@ -1750,7 +1756,7 @@ async function processSource(source, options = {}) {
       const articleUrl = titleSlug
         ? `https://qbitznews.com/articles/${articleId}-${titleSlug}`
         : `https://qbitznews.com/articles/${articleId}`
-      notifyGoogleIndexing(articleUrl).catch(() => { })
+      // notifyGoogleIndexing(articleUrl).catch(() => { }) // Dinonaktifkan: Google Indexing API untuk berita menyebabkan penalti SEO
       notifyBingIndexing(articleUrl).catch(() => { })
     } catch (err) {
       console.error(`Failed to generate article from ${article.title} :`, err.message)

@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound, permanentRedirect } from "next/navigation"
 import React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import Navbar from "@/app/components/Navbar"
 import Footer from "@/app/components/Footer"
 import GoogleAd from "@/app/components/GoogleAd"
@@ -794,13 +795,13 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           {article.featured_image && (
             <figure className="mb-10">
               <div className="relative w-full overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950">
-                <img
-                  src={article.featured_image}
+                <Image
+                  src={article.featured_image || ""}
                   alt={displayTitle}
+                  width={1200}
+                  height={630}
+                  priority
                   className="w-full h-auto object-contain"
-                  fetchPriority="high"
-                  loading="eager"
-                  decoding="async"
                 />
               </div>
               {(() => {
@@ -946,9 +947,11 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
                   >
                     <div className="h-40 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-950 flex items-center justify-center overflow-hidden relative">
                       {recArticle.featured_image ? (
-                        <img
-                          src={recArticle.featured_image}
+                        <Image
+                          src={recArticle.featured_image || ""}
                           alt={getDisplayTitle(recArticle.title)}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 33vw"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
