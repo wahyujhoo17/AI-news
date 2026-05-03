@@ -715,19 +715,19 @@ async function fetchFullArticleContent(url) {
       maxBodyLength: 700 * 1024,
     });
     const $ = cheerio.load(response.data);
-    
+
     // Selector prioritas untuk konten artikel
     const selectors = [
-      "article", 
-      ".post-content", 
-      ".entry-content", 
+      "article",
+      ".post-content",
+      ".entry-content",
       ".story-content",
-      ".article-content", 
-      ".content", 
+      ".article-content",
+      ".content",
       "main",
       "[role=\"main\"]"
     ];
-    
+
     let content = "";
     for (const sel of selectors) {
       const el = $(sel).first();
@@ -741,19 +741,19 @@ async function fetchFullArticleContent(url) {
         }
       }
     }
-    
+
     // Fallback: ambil semua paragraf di body jika selector di atas tidak menghasilkan cukup teks
     if (content.length < 300) {
       const allParagraphs = $("body p").map((i, p) => $(p).text().trim()).get();
       content = allParagraphs.join(" ").replace(/\s+/g, " ").trim();
       console.log(`[FULL-CONTENT] Fallback to body paragraphs, length: ${content.length} chars`);
     }
-    
+
     // Potong jika terlalu panjang (max 10000 chars untuk efisiensi)
     if (content.length > 10000) {
       content = content.substring(0, 10000) + "...";
     }
-    
+
     return content;
   } catch (error) {
     console.error("[FULL-CONTENT] Error fetching full article:", error.message);
@@ -767,6 +767,7 @@ async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
   const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
 
   const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.
+Write in a way that sounds like a real newsroom editor, not a template. Use a strong lead, concrete details, varied sentence length, and enough context for a human reader to feel the story is fully developed.
 
 Source Title: ${title}
 Source Content: ${sourceContent.slice(0, 2000)}
@@ -795,10 +796,11 @@ EXCERPT RULES:
 - Do NOT start with: "This article", "In this piece", "Learn about", "Read"
 
 ARTICLE RULES:
-- Journalistic flow, minimum 500 words.
-- WRITE LIKE A HUMAN: Vary sentence structures and lengths. Avoid robotic transitions.
+- Journalistic flow, 700-1000 words minimum.
+- WRITE LIKE A HUMAN: Vary sentence structures and lengths. Avoid robotic transitions and repeated phrasing.
 - AVOID AI CLICHÉS: Never use phrases like "In today's digital age," "It is important to note," "In conclusion," or "A testament to."
 - Add unique analytical value, industry context, or implications instead of just rewriting the source.
+- Use at least 5 paragraphs. Keep them varied in length; do not make every paragraph the same size.
 - Headings OPTIONAL (max 2), NEVER: Introduction, Background, Conclusion, Summary.
 - Tables/diagrams only for structured data.
 - Bold (**text**) sparingly, only when it adds clarity.
@@ -816,8 +818,8 @@ Begin:`
           { role: 'system', content: 'You are a professional news journalist. Always start directly with the headline. Output valid Markdown only. Avoid templated section structures and generic headings like Introduction/Conclusion. Use natural, context-driven narrative flow. Tables and mermaid flowcharts are optional and must not be forced; use them only when they genuinely improve clarity for structured/process-heavy stories. Do not include any preamble, explanation, meta-commentary, or instructions.' },
           { role: 'user', content: prompt }
         ],
-        max_tokens: 3000,
-        temperature: 0.8
+        max_tokens: 3600,
+        temperature: 0.85
       },
       {
         headers: {
@@ -968,6 +970,8 @@ Begin:`
       .split('\n')
       .filter(line => !templatedHeadingPattern.test(line.trim()))
       .join('\n')
+      .replace(/^read\s+more\.?$/gim, '')
+      .replace(/^baca\s+(artikel|selengkapnya|laporan\s+lengkap)\.?$/gim, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim()
 
@@ -1097,8 +1101,8 @@ Begin:`
 
     // 2. Konten terlalu pendek — AI gagal/terpotong
     const wordCount = cleanContent.split(/\s+/).filter(Boolean).length
-    if (wordCount < 200) {
-      throw new Error(`Content too short (${wordCount} words, min 200) — not saved: "${seoHeadline.slice(0, 60)}"`)
+    if (wordCount < 280) {
+      throw new Error(`Content too short (${wordCount} words, min 280) — not saved: "${seoHeadline.slice(0, 60)}"`)
     }
 
     // 3. Kalimat terakhir terpotong
@@ -1542,7 +1546,7 @@ async function processSource(source, options = {}) {
   } else {
     articles = await fetchHTML(source.url)
   }
-  
+
   // Filter artikel usang: abaikan artikel yang lebih tua dari 7 hari
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -1606,7 +1610,7 @@ async function processSource(source, options = {}) {
       // Fallback scraping: jika konten RSS terlalu pendek, coba ambil konten lengkap dari URL artikel
       let sourceContent = article.content;
       if (sourceContent.length < 500 && article.link && article.link.startsWith("http")) {
-        console.log("[FALLBACK] RSS content too short (" + sourceContent.length + " chars), fetching full article from " + article.link.slice(0,80) + "...");
+        console.log("[FALLBACK] RSS content too short (" + sourceContent.length + " chars), fetching full article from " + article.link.slice(0, 80) + "...");
         const fullContent = await fetchFullArticleContent(article.link);
         if (fullContent && fullContent.length > sourceContent.length) {
           console.log("[FALLBACK] Using full content (" + fullContent.length + " chars, +" + (fullContent.length - sourceContent.length) + " more)");
@@ -1622,7 +1626,7 @@ async function processSource(source, options = {}) {
         continue;
       }
 
-            const generated = await generateArticle(article.title, sourceContent, article.link)
+      const generated = await generateArticle(article.title, sourceContent, article.link)
 
       // Verifikasi 2: Cek judul artikel yang sudah di-generate
       const existingGenerated = await pool.query(

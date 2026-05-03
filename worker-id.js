@@ -414,6 +414,7 @@ ${contextText}`,
 async function generateArticleWithOpenRouter(sourceTitle, sourceContent, sourceName) {
     const prompt = `Kamu adalah jurnalis profesional Indonesia untuk portal berita digital qbitznews.com.
 Sumber berita mungkin dalam bahasa Inggris — WAJIB terjemahkan dan tulis SELURUH artikel dalam bahasa Indonesia.
+Tulis artikel yang terasa seperti laporan redaksi manusia: ada lead yang hidup, detail konkret, alur naratif yang natural, dan konteks yang cukup. Jangan menulis seperti template atau ringkasan singkat.
 
 ---
 JUDUL SUMBER: ${sourceTitle}
@@ -431,7 +432,18 @@ EXCERPT: 1-2 kalimat teaser dalam BAHASA INDONESIA, 120-155 karakter
 CATEGORY: 1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Sepakbola | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita
 
 ARTIKEL:
-Isi artikel 350-400 kata dalam BAHASA INDONESIA menggunakan Markdown
+Isi artikel 700-950 kata dalam BAHASA INDONESIA menggunakan Markdown.
+Wajib minimal 8 paragraf pendek-sedang, bukan daftar poin.
+Setiap paragraf harus membawa informasi baru, bukan mengulang kalimat sebelumnya.
+
+ATURAN GAYA TULIS:
+- Buka dengan lead yang spesifik dan langsung ke inti peristiwa.
+- Gunakan variasi panjang kalimat; campur kalimat pendek dan panjang.
+- Tambahkan konteks, dampak, dan implikasi yang masuk akal dari berita, bukan sekadar menyalin sumber.
+- Hindari pembuka template seperti "Dalam artikel ini", "Artikel ini membahas", "Simak", atau "Baca selengkapnya".
+- Jangan menutup dengan kalimat klise seperti "Kesimpulannya" atau "Sebagai penutup".
+- Jangan memakai heading generik seperti Pendahuluan, Latar Belakang, atau Kesimpulan.
+- Jika ada subjudul, maksimal 2 dan harus spesifik sesuai isi, bukan label umum.
 
 ATURAN WAJIB:
 - SELURUH judul, excerpt, dan isi artikel HARUS dalam bahasa Indonesia — DILARANG menulis dalam bahasa Inggris
@@ -527,9 +539,9 @@ ATURAN ARTIKEL:
                 if (groqKeyManager && groqKeyManager.cooldownTimes[candidateKey] > Date.now()) {
                     continue // Skip keys on cooldown
                 }
-                
+
                 groqKey = candidateKey
-                
+
                 try {
                     const tunedMaxTokens = model === 'llama-3.1-8b-instant'
                         ? Math.min(maxTokens, 650)
@@ -538,7 +550,7 @@ ATURAN ARTIKEL:
                 } catch (err) {
                     lastErr = err
                     const status = err.response?.status
-                    
+
                     if (status === 429) {
                         if (groqKeyManager) groqKeyManager.recordFailure(candidateKey, 'rate_limit_exceeded')
                         console.warn(`[ID-WORKER] Groq key ...${String(candidateKey).slice(-6)} rate-limited on model ${model}, trying NEXT KEY...`)
@@ -560,7 +572,7 @@ ATURAN ARTIKEL:
     }
 
     try {
-        const responseData = await runModel(orMessages, { maxTokens: 1300, temperature: 0.7 })
+        const responseData = await runModel(orMessages, { maxTokens: 1800, temperature: 0.8 })
         const fullContent = responseData?.choices?.[0]?.message?.content || ''
         if (!fullContent) throw new Error('Empty content from Groq')
 
@@ -689,6 +701,8 @@ ATURAN ARTIKEL:
             .replace(/^baris\s*\d+\s*[:\-]?\s*/gim, '')
             .replace(/^source(?:\s*[:\-]|\s+)[^\n]*/gim, '')
             .replace(/^sumber(?:\s*[:\-]|\s+)[^\n]*/gim, '')
+            .replace(/^read\s+more\.?$/gim, '')
+            .replace(/^baca\s+(artikel|selengkapnya|laporan\s+lengkap)\.?$/gim, '')
             .replace(/\n{3,}/g, '\n\n')
             .trim()
 
@@ -753,12 +767,12 @@ ATURAN ARTIKEL:
         // ── Validasi kelengkapan artikel ────────────────────────────────────
         // 1. Konten terlalu pendek — AI gagal/terpotong
         const wordCount = content.split(/\s+/).filter(Boolean).length
-        if (wordCount < 120) {
-            throw new Error(`Konten terlalu pendek (${wordCount} kata, min 120) — tidak disimpan: "${title.slice(0, 60)}"`)
+        if (wordCount < 260) {
+            throw new Error(`Konten terlalu pendek (${wordCount} kata, min 260) — tidak disimpan: "${title.slice(0, 60)}"`)
         }
 
         // 2. Jika terpotong karena limit token, izinkan selama masih cukup panjang
-        if (finishReason === 'length' && wordCount < 160) {
+        if (finishReason === 'length' && wordCount < 280) {
             throw new Error(`Artikel terpotong (finish_reason=length, ${wordCount} kata) — tidak disimpan: "${title.slice(0, 60)}"`)
         }
 
