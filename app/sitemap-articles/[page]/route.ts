@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { buildArticlePath } from '@/lib/article-slug'
+import { buildArticlePath, getDisplayTitle } from '@/lib/article-slug'
 import { pool } from '@/lib/db'
 import { SITE_URL, escapeXml, formatSitemapDate, SITEMAP_ARTICLE_CHUNK_SIZE } from '@/lib/sitemap'
 
@@ -56,7 +56,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n'
 
     articles.forEach((article) => {
-      const articlePath = buildArticlePath(article.id, article.title)
+      const articlePath = buildArticlePath(article.id, getDisplayTitle(article.title))
       const date = formatSitemapDate(article.published_at || article.created_at)
 
       xml += '  <url>\n'

@@ -414,7 +414,7 @@ ${contextText}`,
 async function generateArticleWithOpenRouter(sourceTitle, sourceContent, sourceName) {
     const prompt = `Kamu adalah jurnalis profesional Indonesia untuk portal berita digital qbitznews.com.
 Sumber berita mungkin dalam bahasa Inggris — WAJIB terjemahkan dan tulis SELURUH artikel dalam bahasa Indonesia.
-Tulis artikel yang terasa seperti laporan redaksi manusia: ada lead yang hidup, detail konkret, alur naratif yang natural, dan konteks yang cukup. Jangan menulis seperti template atau ringkasan singkat.
+Tulis artikel yang terasa seperti laporan redaksi manusia: ada lead yang hidup, detail konkret, alur naratif yang natural, dan konteks yang cukup. Tambahkan analisis mendalam, kritik editorial, dan opini profesional yang memberikan nilai tambah bagi pembaca, sehingga artikel ini unik dan berbeda dari portal berita lainnya. Jangan menulis seperti template atau ringkasan singkat.
 
 ---
 JUDUL SUMBER: ${sourceTitle}
@@ -432,9 +432,9 @@ EXCERPT: 1-2 kalimat teaser dalam BAHASA INDONESIA, 120-155 karakter
 CATEGORY: 1-2 kategori dari daftar: Kripto & Blockchain | Teknologi | Politik | Ekonomi | Olahraga | Sepakbola | Hiburan | Kesehatan | Pendidikan | Hukum & Kriminal | Lingkungan | Berita
 
 ARTIKEL:
-Isi artikel 700-950 kata dalam BAHASA INDONESIA menggunakan Markdown.
-Wajib minimal 8 paragraf pendek-sedang, bukan daftar poin.
-Setiap paragraf harus membawa informasi baru, bukan mengulang kalimat sebelumnya.
+Isi artikel 1000-1500 kata dalam BAHASA INDONESIA menggunakan Markdown.
+Wajib minimal 12 paragraf pendek-sedang, bukan daftar poin.
+Setiap paragraf harus membawa informasi baru, analisis mendalam, atau opini kritis.
 
 ATURAN GAYA TULIS:
 - Buka dengan lead yang spesifik dan langsung ke inti peristiwa.
@@ -499,13 +499,13 @@ ATURAN ARTIKEL:
 - Gaya jurnalistik profesional, bahasa formal tapi mudah dipahami.
 - TULIS SEPERTI MANUSIA: Gunakan variasi panjang kalimat (kalimat pendek untuk penegasan, kalimat panjang untuk penjelasan).
 - HINDARI frasa klise AI yang sering terdeteksi sebagai spam (contoh: "Di era digital ini", "Penting untuk diingat bahwa", "Kesimpulannya", "Tidak dapat dipungkiri").
-- Sertakan konteks lokal, opini analitis, atau dampak nyata dari kejadian tersebut agar tidak sekadar menjadi tulisan ulang (rewrite).
+- Sertakan konteks lokal, opini analitis, atau dampak nyata dari kejadian tersebut agar tidak sekadar menjadi tulisan ulang (rewrite). Pastikan artikel memiliki "suara" editorial yang kuat dan unik.
 - Gunakan ## untuk sub-judul jika topik membutuhkan struktur.
 - JANGAN heading generik: Pendahuluan, Kesimpulan, Latar Belakang.
-- Akhiri dengan paragraf penutup yang tajam tanpa merangkum ulang isi berita.`
+- Akhiri dengan paragraf penutup yang tajam tanpa merangkum ulang isi berita. Tunjukkan implikasi masa depan atau prediksi logis dari kejadian ini.`
 
     const orMessages = [
-        { role: 'system', content: 'Kamu adalah jurnalis profesional Indonesia. WAJIB menulis SELURUH output dalam bahasa Indonesia, kecuali IMAGE_HINT. JANGAN gunakan tanda kurung siku [] dalam output. Ikuti format yang diberikan dengan tepat. Jangan tambahkan preamble, penjelasan, atau komentar apapun.' },
+        { role: 'system', content: 'Kamu adalah jurnalis senior dan analis berita profesional Indonesia. WAJIB menulis SELURUH output dalam bahasa Indonesia, kecuali IMAGE_HINT. Gunakan gaya bahasa jurnalistik yang berbobot dengan opini analitis yang tajam agar konten unik dan tidak dianggap spam/duplicate. JANGAN gunakan tanda kurung siku [] dalam output. Ikuti format yang diberikan dengan tepat.' },
         { role: 'user', content: prompt }
     ]
     let groqKey = groqKeyManager ? groqKeyManager.getNextKey() : (process.env.GROQ_API_KEY_ID || process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY)
@@ -1388,7 +1388,7 @@ async function crawlIndonesian() {
 // ============================================
 // SCHEDULE: every 45 minutes
 // ============================================
-cron.schedule('*/90 * * * *', () => {
+cron.schedule('*/225 * * * *', () => {
     crawlIndonesian().catch(err => console.error('[ID-WORKER] Crawl error:', err.message))
 })
 

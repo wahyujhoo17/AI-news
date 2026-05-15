@@ -50,3 +50,12 @@ export function buildArticleRouteParam(articleId: number | string, title: string
 export function buildArticlePath(articleId: number | string, title: string): string {
   return `/articles/${buildArticleRouteParam(articleId, title)}`
 }
+
+export function getDisplayTitle(title: string): string {
+  return String(title || '')
+    .replace(/^\s*\[(?:judul|title|headline|heading)\]\s*/i, '')
+    .replace(/^\s*(?:judul|title|headline|heading)\s*[:\-]\s*/i, '')
+    .replace(/^\s*"(.*)"\s*$/, '$1')
+    .replace(/^\s*'(.*)'\s*$/, '$1')
+    .trim()
+}

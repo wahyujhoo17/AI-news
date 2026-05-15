@@ -766,8 +766,8 @@ async function generateArticle(title, sourceContent, sourceUrl, _attempt = 0) {
   const groqKey = groqManager.getNextKey()
   const groqModel = process.env.GROQ_MODEL || 'openai/gpt-oss-20b'
 
-  const prompt = `You are a professional news journalist. Write a comprehensive news article based on the source below.
-Write in a way that sounds like a real newsroom editor, not a template. Use a strong lead, concrete details, varied sentence length, and enough context for a human reader to feel the story is fully developed.
+  const prompt = `You are a senior news editor and industry analyst. Write a comprehensive, long-form news article based on the source below.
+Write in a way that sounds like a premium editorial piece from a major newsroom. provide unique analytical depth, industry context, expert-level critique, and future implications. Do not just rewrite the source; provide a distinct perspective that makes this content stand out from generic news aggregators.
 
 Source Title: ${title}
 Source Content: ${sourceContent.slice(0, 2000)}
@@ -779,7 +779,6 @@ IMAGE_HINT: 4-8 English keywords for Unsplash (concrete visuals only, no names/o
 EXCERPT: Compelling 1-2 sentence teaser — plain text, no asterisks (120-155 chars)
 CATEGORY: One of: Technology | Business | Sports | Football | Health | Entertainment | Politics | Environment | Education | Crime | Crypto | General | Music | Science | AI (choose the best fit, or General if unsure)
 ARTICLE:
-Article body in Markdown starts here (minimum 500 words)
 
 HEADLINE RULES:
 - Subject + Verb + Object, starts with proper noun/org/country (NOT "The", "A", "An")
@@ -796,7 +795,7 @@ EXCERPT RULES:
 - Do NOT start with: "This article", "In this piece", "Learn about", "Read"
 
 ARTICLE RULES:
-- Journalistic flow, 700-1000 words minimum.
+- Journalistic flow, 1000-1500 words minimum. Use a distinct editorial voice with analytical critique.
 - WRITE LIKE A HUMAN: Vary sentence structures and lengths. Avoid robotic transitions and repeated phrasing.
 - AVOID AI CLICHÉS: Never use phrases like "In today's digital age," "It is important to note," "In conclusion," or "A testament to."
 - Add unique analytical value, industry context, or implications instead of just rewriting the source.
@@ -815,7 +814,7 @@ Begin:`
       {
         model: groqModel,
         messages: [
-          { role: 'system', content: 'You are a professional news journalist. Always start directly with the headline. Output valid Markdown only. Avoid templated section structures and generic headings like Introduction/Conclusion. Use natural, context-driven narrative flow. Tables and mermaid flowcharts are optional and must not be forced; use them only when they genuinely improve clarity for structured/process-heavy stories. Do not include any preamble, explanation, meta-commentary, or instructions.' },
+          { role: 'system', content: 'You are a senior news editor and analytical journalist. Always start directly with the headline. Output valid Markdown only. Include a distinct editorial voice, professional opinion, and deep analytical critique to ensure the content is unique and high-value. Avoid templated section structures and generic headings. Do not include any preamble, explanation, or instructions.' },
           { role: 'user', content: prompt }
         ],
         max_tokens: 3600,
@@ -1189,7 +1188,6 @@ IMAGE_HINT: 4-8 English keywords for Unsplash (concrete visuals only, no names/o
 EXCERPT: Compelling 1-2 sentence teaser — plain text, no asterisks (120-155 chars)
 CATEGORY: One of: Technology | Business | Sports | Football | Health | Entertainment | Politics | Environment | Education | Crime | Crypto | General
 ARTICLE:
-Article body in Markdown starts here (minimum 500 words)
 
 HEADLINE RULES:
 - Subject + Verb + Object, starts with proper noun/org/country (NOT "The", "A", "An")
@@ -1887,7 +1885,7 @@ async function runCrawl() {
 }
 
 // Cron: every 30 minutes
-cron.schedule('*/30 * * * *', () => {
+cron.schedule('*/75 * * * *', () => {
   runCrawl()
 })
 

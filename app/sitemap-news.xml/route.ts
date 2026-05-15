@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import { SITE_URL, escapeXml } from '@/lib/sitemap'
-import { buildArticlePath } from '@/lib/article-slug'
+import { buildArticlePath, getDisplayTitle } from '@/lib/article-slug'
 
 // Google News sitemaps: only articles published in the last 48 hours
 // https://developers.google.com/search/docs/crawling-indexing/sitemaps/news-sitemap
@@ -12,12 +12,13 @@ type NewsArticle = {
   title: string
   published_at: string | null
   created_at: string
+  language: string
 }
 
 export async function GET() {
   try {
     const result = await pool.query<NewsArticle>(
-      `SELECT id, title, published_at, created_at
+      `SELECT id, title, published_at, created_at, language
        FROM articles
        WHERE is_published = true
          AND COALESCE(published_at, created_at) >= NOW() - INTERVAL '48 hours'
@@ -34,7 +35,8 @@ export async function GET() {
     xml += '  xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n'
 
     articles.forEach((article) => {
-      const articlePath = buildArticlePath(article.id, article.title)
+      const displayTitle = getDisplayTitle(article.title)
+      const articlePath = buildArticlePath(article.id, displayTitle)
       const pubDate = new Date(article.published_at || article.created_at).toISOString()
 
       xml += '  <url>\n'
@@ -42,10 +44,10 @@ export async function GET() {
       xml += '    <news:news>\n'
       xml += '      <news:publication>\n'
       xml += '        <news:name>Qbitz</news:name>\n'
-      xml += '        <news:language>en</news:language>\n'
+      xml += `        <news:language>${article.language || 'en'}</news:language>\n`
       xml += '      </news:publication>\n'
       xml += `      <news:publication_date>${pubDate}</news:publication_date>\n`
-      xml += `      <news:title>${escapeXml(article.title)}</news:title>\n`
+      xml += `      <news:title>${escapeXml(displayTitle)}</news:title>\n`
       xml += '    </news:news>\n'
       xml += '  </url>\n'
     })

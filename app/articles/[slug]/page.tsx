@@ -11,6 +11,7 @@ import {
   buildArticleRouteParam,
   extractArticleRouteParts,
   normalizeArticleSlug,
+  getDisplayTitle,
 } from "@/lib/article-slug"
 
 interface Article {
@@ -170,14 +171,6 @@ function getAdaptiveTitleClass(title: string, variant: "page" | "card" = "page")
   return "text-base"
 }
 
-function getDisplayTitle(title: string): string {
-  return String(title || '')
-    .replace(/^\s*\[(?:judul|title|headline|heading)\]\s*/i, '')
-    .replace(/^\s*(?:judul|title|headline|heading)\s*[:\-]\s*/i, '')
-    .replace(/^\s*"(.*)"\s*$/, '$1')
-    .replace(/^\s*'(.*)'\s*$/, '$1')
-    .trim()
-}
 
 function normalizeContentLineForCompare(text: string): string {
   return text
